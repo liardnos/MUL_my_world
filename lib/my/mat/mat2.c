@@ -29,7 +29,6 @@ float *mat3_point(float *mat, float *p)
     p2[1] = 0;
     p2[2] = 0;
     p2[3] = 1;
-
     for (int n = 0; n < 4; n++){
         p2[n] = 0;
         for (int x = 0; x < 4; x++){
