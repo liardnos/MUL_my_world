@@ -19,7 +19,7 @@ typedef struct framebuffer {
 } framebuffer_t;
 
 
-int my_draw_line(framebuffer_t *buf, sfVector2u *vects0, sfVector2u *vects1,
+int my_draw_line(framebuffer_t *buf, sfVector2f *vects0, sfVector2f *vects1,
     sfColor color);
 framebuffer_t *framebuffer_create(unsigned int width, unsigned int height);
 void framebuffer_destroy(framebuffer_t *framebuffer);

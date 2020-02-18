@@ -99,5 +99,18 @@ typedef struct btr
 btr_t *btr_init(unsigned char size, int (*cmp)(void *));
 #endif
 
+//matrice
+float *mat3_init(void);
+float *mat3_multiply(float *mat1, float *mat2);
+float *mat3_init_x(float a);
+float *mat3_init_y(float a);
+float *mat3_init_z(float a);
+float *mat3_init_scale(float s);
+float *init_p(void);
+float *mat3_point(float *mat, float *p);
+void mat3_rx(float *mat_o, float a);
+void mat3_ry(float *mat_o, float a);
+void mat3_rz(float *mat_o, float a);
+
 //csfml
 //#include <SFML/Graphics.h>

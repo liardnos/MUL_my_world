@@ -7,7 +7,8 @@
 
 SOURCE	=	*.c \
 			lld/*.c \
-			csfml/*.c
+			csfml/*.c \
+			mat/*.c
 			#btr/*.c
 
 OBJ		=	$(SOURCE:.c=.o)
