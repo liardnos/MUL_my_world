@@ -9,6 +9,8 @@
 #include "my.h"
 #include "screen.h"
 #include <SFML/Graphics.h>
+#include <SFML/Window/Export.h>
+#include <SFML/Window/Keyboard.h>
 /*
 typedef struct mesh
 {
@@ -79,6 +81,11 @@ void free_points(float **points)
 }
 
 //mesh fonction
+/*float lerp(float a, float b, float w)
+{
+    return ((1.0 - w)*a + w*b);
+}*/
+
 float **create_mesh(int x, int y)
 {
     float **mesh = malloc(sizeof(float *) * (x+1));
@@ -87,10 +94,7 @@ float **create_mesh(int x, int y)
         mesh[i] = malloc(sizeof(float) * (y+1));
         int ii = 0;
         for (; ii < y; ii++){
-            if (i > 0 && ii > 0)
-                mesh[i][ii] = (mesh[i-1][ii]+mesh[i][i-1])/2*0.5+(rand()%200)/100.0*0.5;
-            else
-                mesh[i][ii] = (rand()%200)/100.0;
+            mesh[i][ii] = (rand()%5000)/5000.0;
         }
         mesh[i][ii] = 0;
     }
@@ -120,10 +124,6 @@ float **mesh_to_points(float **mesh, int x, int y)
 void draw_mesh(framebuffer_t *buf, float **points, int x, int y)
 {
     int size = 16;
-    for (int i = 0; i < x*y; i++){
-        sfVector2u   vec[] = {{points[i][0]*size + 512, points[i][1]*size + 512}};
-        my_draw_circle(buf, *vec, 2, &sfRed);
-    }
     sfVector2f *vec = malloc(sizeof(sfVector2u));
     sfVector2f *vec1 = malloc(sizeof(sfVector2u));
     sfVector2f *vec3 = malloc(sizeof(sfVector2u));
@@ -173,19 +173,31 @@ int main(int ac, char **av)
     mat3_rz(mat_start, -45.0/180*3.14);
 
     float *mat_play = mat3_init();
-    mat3_ry(mat_play, 0.1/180*3.14);
+    mat3_ry(mat_play, 0/180*3.14);
 
     points2 = rotate_points(points, mat_start);
     free_points(points);
     points = points2;
     for (int frame_nb = 0; frame_nb < 6000; frame_nb++){
-        printf("frame %i\n", frame_nb);
-        points2 = rotate_points(points, mat_play);
-        free_points(points);
-        points = points2;
         framebuffer_t *buf = draw();
         my_fill_buffer(buf, sfBlack);
-        draw_mesh(buf, points, size_x, size_y);
+        printf("frame %i\n", frame_nb);
+        if (sfKeyboard_isKeyPressed(sfKeyZ)){
+            mat3_rx(mat_start, 1.0/180*3.14);
+        }
+        if (sfKeyboard_isKeyPressed(sfKeyS)){
+            mat3_rx(mat_start, -1.0/180*3.14);
+        }
+        if (sfKeyboard_isKeyPressed(sfKeyQ)){
+            mat3_ry(mat_start, 1.0/180*3.14);
+        }
+        if (sfKeyboard_isKeyPressed(sfKeyD)){
+            mat3_ry(mat_start, -1.0/180*3.14);
+        }
+        points2 = rotate_points(points, mat_start);
+        points2;
+        draw_mesh(buf, points2, size_x, size_y);
+        free_points(points2);
     }
     free_mesh(mesh, size_x, size_y);
     free_points(points);

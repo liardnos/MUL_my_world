@@ -72,7 +72,7 @@ void mat3_rx(float *mat_o, float a)
     mat[6] = -sin(a);
     mat[9] = sin(a);
     mat[10] = cos(a);
-    float *mat_f = mat3_multiply(mat_o, mat);
+    float *mat_f = mat3_multiply(mat, mat_o);
     for (int i = 0; i < 16; i++)
         mat_o[i] = mat_f[i];
     free(mat_f);
@@ -86,7 +86,7 @@ void mat3_ry(float *mat_o, float a)
     mat[2] = sin(a);
     mat[8] = -sin(a);
     mat[10] = cos(a);
-    float *mat_f = mat3_multiply(mat_o, mat);
+    float *mat_f = mat3_multiply(mat, mat_o);
     for (int i = 0; i < 16; i++)
         mat_o[i] = mat_f[i];
     free(mat_f);
@@ -100,7 +100,7 @@ void mat3_rz(float *mat_o, float a)
     mat[1] = -sin(a);
     mat[4] = sin(a);
     mat[5] = cos(a);
-    float *mat_f = mat3_multiply(mat_o, mat);
+    float *mat_f = mat3_multiply(mat, mat_o);
     for (int i = 0; i < 16; i++)
         mat_o[i] = mat_f[i];
     free(mat_f);
