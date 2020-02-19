@@ -84,21 +84,71 @@ void free_points(float **points)
 }
 
 //mesh fonction
-/*float lerp(float a, float b, float w)
-{
-    return ((1.0 - w)*a + w*b);
-}*/
+float lerp(float a, float b, float w) {
+    return (1.0f - w)*a + w*b;
+}
 
-float **create_mesh(int x, int y)
+float dotGridGradient(int ix, int iy, float x, float y, float ***grad)
 {
+    float dx = x - (float)ix;
+    float dy = y - (float)iy;
+    return (dx*grad[iy][ix][0] + dy*grad[iy][ix][1]);
+}
+
+float perlin(float x, float y, float ***grad)
+{
+    int x0 = (int)x;
+    int x1 = x0 + 1;
+    int y0 = (int)y;
+    int y1 = y0 + 1;
+
+    float sx = x - (float)x0;
+    float sy = y - (float)y0;
+
+    float n0, n1, ix0, ix1, value;
+
+    n0 = dotGridGradient(x0, y0, x, y, grad);
+    n1 = dotGridGradient(x1, y0, x, y, grad);
+    ix0 = lerp(n0, n1, sx);
+
+    n0 = dotGridGradient(x0, y1, x, y, grad);
+    n1 = dotGridGradient(x1, y1, x, y, grad);
+    ix1 = lerp(n0, n1, sx);
+    value = lerp(ix0, ix1, sy);
+    return value;
+}
+
+float ***grid_grad(int x, int y)
+{
+    float ***grad = malloc(sizeof(float *) * (x+1));
+    for (int i = 0; i < x; i++){
+        grad[i] = malloc(sizeof(float*) * (y+1));
+        int ii = 0;
+        for (; ii < y; ii++){
+            grad[i][ii] = malloc(sizeof(float) * 2);
+            grad[i][ii][0] = (rand()%5000)/2500.0-1;
+            grad[i][ii][1] = (rand()%5000)/2500.0-1;
+        }
+        grad[i][ii] = 0;
+    }
+    grad[y] = 0;
+    return (grad);
+}
+
+float **create_mesh(int x, int y, int d)
+{
+    float ***grad = grid_grad(x+1, y+1  );
     float **mesh = malloc(sizeof(float *) * (x+1));
     int i = 0;
     for (; i < x; i++){
         mesh[i] = malloc(sizeof(float) * (y+1));
         int ii = 0;
         for (; ii < y; ii++){
-            //mesh[i][ii] = (rand()%5000)/500.0;
-            mesh[i][ii] = (rand()%5000)/5000.0;// - 0.2*pow(pow(x/2-i, 2) + pow(y/2-ii, 2), 0.5);
+            mesh[i][ii] = 0;//(rand()%5000)/5000.0;// - 0.2*pow(pow(x/2-i, 2) + pow(y/2-ii, 2), 0.5);
+            for (int d_nb = 0; d_nb < d; d_nb++)
+                mesh[i][ii] += perlin((float)i/(1.1*pow(2, d_nb)), (float)ii/(1.1*pow(2, d_nb)), grad)*pow(2, d_nb);
+            if (i == 0 || i == x-1 || ii == 0 || ii == y-1)
+                mesh[i][ii] += 100;
         }
         mesh[i][ii] = 0;
     }
@@ -167,12 +217,12 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y)
 
     for (int i = 1+y; i < x*y; i++){
         points[i][2] = -points[i][2];
-        points[i][0] = points[i][0]*size/points[i][2]*10 + 512;
-        points[i][1] = points[i][1]*size/points[i][2]*10 + 512;
+        points[i][0] = points[i][0]*size/points[i][2]*32 + SCREEN_X/2;
+        points[i][1] = points[i][1]*size/points[i][2]*32 + SCREEN_Y/2;
     }
 
-    for (int i = 1+y*2; i < x*y - y; i++){
-        if (i % y == 0 || points[i][2] < 0  || points[i][0] > 1024 || points[i][0] < 0 || points[i][1] > 1024 || points[i][1] < 0)
+    for (int i = 0; i < x*y; i++){
+        if (i % y == 0 || points[i][2] < 0  || points[i][0] > SCREEN_X || points[i][0] < 0 || points[i][1] > SCREEN_Y || points[i][1] < 0)
             continue;
         //printf("%f %f %f %f\n", points[i][0], points[i][1], points[i][2], points[i][3]);
         vec->x = points[i][0];
@@ -202,21 +252,20 @@ void free_mesh(float **mesh, int x, int y)
 //main
 int main(int ac, char **av)
 {
-    int size_x = 128;
-    int size_y = 128;
-    float **mesh = create_mesh(size_x, size_y);
-    float **points = mesh_to_points(mesh, size_x, size_y);
+    int size_x = 256;
+    int size_y = 256;
+    float **mesh = create_mesh(size_x, size_y, 9);
     float **points2;
+    float **points;
 
     float *mat_start = mat3_init();
     mat3_rz(mat_start, -45.0/180*3.14);
     mat3_rx(mat_start, 70.0/180*3.14);
+    mat3_tz(mat_start, -100);
 
-    float *mat_play = mat3_init();
+    //float *mat_play = mat3_init();
 
-    points2 = rotate_points(points, mat_start);
-    free_points(points);
-    points = points2;
+    //points2 = rotate_points(points, mat_start);
     sfVector2i mouse_o;
     sfVector2i mouse;
 
@@ -225,8 +274,8 @@ int main(int ac, char **av)
         my_clear_buffer(buf);
 
         printf("frame %i\n", frame_nb);
-        if (!(frame_nb%1))
-            drop_water(mesh, size_x/2, size_y/2, 0.01, 0);
+        //if (!(frame_nb%1))
+        //    drop_water(mesh, size_x/2, size_y/2, 0.01, 0);
 
         if (sfKeyboard_isKeyPressed(sfKeyZ)){
             mat3_tz(mat_start, 1);
@@ -260,17 +309,14 @@ int main(int ac, char **av)
             mat3_ry(mat_start, -vx/180);
         }
         mouse_o = mouse;
-
-
-
         points = mesh_to_points(mesh, size_x, size_y);
         points2 = rotate_points(points, mat_start);
-        free_points(points);
         draw_mesh(buf, points2, size_x, size_y);
         free_points(points2);
+        free_points(points);
     }
     free_mesh(mesh, size_x, size_y);
     free(mat_start);
-    free(mat_play);
+   // free_points(points2);
     return (0);
 }

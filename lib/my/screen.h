@@ -11,6 +11,9 @@
 
 #ifndef _screen_h_
 #define _screen_h_
+#define SCREEN_X 1024
+#define SCREEN_Y 1024
+
 
 typedef struct framebuffer {
     unsigned int width;

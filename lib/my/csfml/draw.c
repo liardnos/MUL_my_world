@@ -11,7 +11,7 @@
 
 framebuffer_t *draw(void)
 {
-    static sfVideoMode mode = {1024, 1024, 32};
+    static sfVideoMode mode = {SCREEN_X, SCREEN_Y, 32};
     static sfSprite *sprite = 0; !sprite ? sprite = sfSprite_create() : 0;
     static sfTexture *texture = 0;
     !texture ? texture = sfTexture_create(mode.width, mode.height) : 0;
