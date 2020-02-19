@@ -6,6 +6,7 @@
 */
 
 #include <stdlib.h>
+#include <math.h>
 
 float *mat3_init_scale(float s)
 {

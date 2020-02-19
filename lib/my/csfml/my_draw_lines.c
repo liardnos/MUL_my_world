@@ -83,7 +83,7 @@ int my_draw_line(framebuffer_t *buf, sfVector2f *vects0, sfVector2f *vects1,
     }
 }
 
-void my_draw_lines(framebuffer_t *buf, sfVector2u **vects, int n, sfColor color)
+void my_draw_lines(framebuffer_t *buf, sfVector2f **vects, int n, sfColor color)
 {
     for (int i = 0; i < n-1; i++){
         my_draw_line(buf, vects[i], vects[i+1], color);

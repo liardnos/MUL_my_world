@@ -111,6 +111,9 @@ float *mat3_point(float *mat, float *p);
 void mat3_rx(float *mat_o, float a);
 void mat3_ry(float *mat_o, float a);
 void mat3_rz(float *mat_o, float a);
+void mat3_tx(float *mat_o, float t);
+void mat3_ty(float *mat_o, float t);
+void mat3_tz(float *mat_o, float t);
 
 //csfml
 //#include <SFML/Graphics.h>

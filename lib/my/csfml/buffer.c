@@ -41,9 +41,14 @@ void my_put_pixel(framebuffer_t *framebuffer, unsigned int x, unsigned int y,
 
 void my_fill_buffer(framebuffer_t *buf, sfColor color)
 {
-    for (int x = 0; x < buf->width; x++)
-        for (int y = 0; y < buf->height; y++)
-            my_put_pixel(buf, x, y, color);
+    int size = buf->width * buf->height;
+
+    for (int i = 0; i < size; i++){
+        buf->pixels[i*4] = color.r;
+        buf->pixels[i*4 + 1] = color.g;
+        buf->pixels[i*4 + 2] = color.b;
+        buf->pixels[i*4 + 3] = color.a;
+    }
 }
 
 void my_blur_buffer(framebuffer_t *buf, float ratio)
