@@ -98,7 +98,7 @@ float **create_mesh(int x, int y)
         int ii = 0;
         for (; ii < y; ii++){
             //mesh[i][ii] = (rand()%5000)/500.0;
-            mesh[i][ii] = (rand()%5000)/5000.0 - 0.2*pow(pow(x/2-i, 2) + pow(y/2-ii, 2), 0.5);
+            mesh[i][ii] = (rand()%5000)/5000.0;// - 0.2*pow(pow(x/2-i, 2) + pow(y/2-ii, 2), 0.5);
         }
         mesh[i][ii] = 0;
     }
@@ -171,7 +171,7 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y)
         points[i][1] = points[i][1]*size/points[i][2]*10 + 512;
     }
 
-    for (int i = 1+y; i < x*y; i++){
+    for (int i = 1+y*2; i < x*y - y; i++){
         if (i % y == 0 || points[i][2] < 0  || points[i][0] > 1024 || points[i][0] < 0 || points[i][1] > 1024 || points[i][1] < 0)
             continue;
         //printf("%f %f %f %f\n", points[i][0], points[i][1], points[i][2], points[i][3]);
@@ -240,11 +240,17 @@ int main(int ac, char **av)
         if (sfKeyboard_isKeyPressed(sfKeyD)){
             mat3_tx(mat_start, -1);
         }
-        if (sfKeyboard_isKeyPressed(sfKeyA)){
+        if (sfKeyboard_isKeyPressed(sfKeyE)){
             mat3_ty(mat_start, 1);
         }
-        if (sfKeyboard_isKeyPressed(sfKeyE)){
+        if (sfKeyboard_isKeyPressed(sfKeyA)){
             mat3_ty(mat_start, -1);
+        }
+        if (sfKeyboard_isKeyPressed(sfKeyW)){
+            mat3_rz(mat_start, 1.0/180*3.14);
+        }
+        if (sfKeyboard_isKeyPressed(sfKeyX)){
+            mat3_rz(mat_start, -1.0/180*3.14);
         }
         mouse = sfMouse_getPosition(0);
         if (sfMouse_isButtonPressed(sfMouseLeft)){

@@ -11,7 +11,7 @@
 #include <SFML/Graphics.h>
 
 #ifndef _menu_h_
-#define __menu_h_
+#define _menu_h_
 
 typedef struct win
 {
