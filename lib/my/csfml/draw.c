@@ -9,6 +9,8 @@
 #include "../screen.h"
 #include "../my.h"
 
+sfRenderWindow *window_g;
+
 framebuffer_t *draw(void)
 {
     static sfVideoMode mode = {SCREEN_X, SCREEN_Y, 32};
@@ -23,10 +25,11 @@ framebuffer_t *draw(void)
     for (; !first; first = 1){
         sfRenderWindow_setFramerateLimit(window, 60);
         sfSprite_setTexture(sprite, texture, sfTrue);
+        window_g = window;
     }
     sfTexture_updateFromPixels(texture, fb->pixels, mode.width, mode.height, 0, 0);
-    sfRenderWindow_clear(window, sfBlack);
     sfRenderWindow_drawSprite(window, sprite, 0);
     sfRenderWindow_display(window);
+    sfRenderWindow_clear(window, sfBlack);
     return (fb);
 }

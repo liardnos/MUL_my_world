@@ -14,6 +14,8 @@
 #include <math.h>
 #include <stdio.h>
 
+sfRenderWindow *window_g;
+
 /*
 typedef struct mesh
 {
@@ -149,6 +151,9 @@ float **create_mesh(int x, int y, int d)
             mesh[i][ii] = 0;
             for (int d_nb = 0; d_nb < d; d_nb++)
                 mesh[i][ii] += perlin((float)i/(1.1*pow(2, d_nb)), (float)ii/(1.1*pow(2, d_nb)))*pow(2, d_nb);
+            //if (i == 0 || i == x-1 || ii == 0 || ii == y-1)
+            //    mesh[i][ii] += 10000;
+
         }
         mesh[i][ii] = 0;
     }
@@ -166,79 +171,150 @@ float **mesh_to_points(float **mesh, int x, int y)
     int i = 0;
     for (; i < x; i++){
         for (int ii = 0; ii < y; ii++){
-            points[i+ii*x][0] = i-x/2;
-            points[i+ii*x][1] = ii-y/2;
-            points[i+ii*x][2] = mesh[i][ii];
+            points[i+ii*x][0] = -i;
+            points[i+ii*x][1] = -ii;
+            points[i+ii*x][2] = -mesh[i][ii];
             points[i+ii*x][3] = 1;
         }
     }
     return (points);
 }
 
-void drop_water(float **mesh, int x, int y, float f, int n)
+void drop_water(float **mesh, int x, int y, float f, float n)
 {
-    mesh[x][y] -= f;
-    float here = mesh[x][y];
-    if (n >= 64){
-        mesh[x][y] += f;
-        return;
-    }
-
-    //framebuffer_t *buf = draw();
-    //sfVector2f vec[] = {}
-    //my_draw_circle(buf, vec, 5, sfRed);
     char ok = 0;
-    if (here > mesh[x-1][y]){
-        drop_water(mesh, x-1, y, f, n+1);
-        ok = 1;
+    if ((x <= 1 || x >= 254 || y <= 1 || y >= 254)){
+        ok = 0;
+    } else {
+        float here = mesh[x][y];
+        float drag = 0;
+        for (int i = 0; i < 16; i++){
+            int xx = rand()%3-1 + x;
+            int yy = rand()%3-1 + y;
+            if (here > mesh[xx][yy]){
+                drag = pow(here - mesh[xx][yy], 0.5) * f-n;
+                drop_water(mesh, xx, yy, f, n+drag);
+                mesh[x][y] -= drag/2;
+                mesh[x-1][y] -= drag/8;
+                mesh[x+1][y] -= drag/8;
+                mesh[x][y-1] -= drag/8;
+                mesh[x][y+1] -= drag/8;
+                ok = 1;
+                break;
+            }
+        }
     }
-    else if (here > mesh[x+1][y]){
-        drop_water(mesh, x+1, y, f, n+1);
-        ok = 1;
+    if (!ok){
+        mesh[x+1][y] += n/8;
+        mesh[x-1][y] += n/8;
+        mesh[x][y+1] += n/8;
+        mesh[x][y-1] += n/8;
+        mesh[x][y] += n/2;
     }
-    else if (here > mesh[x][y-1]){
-        drop_water(mesh, x, y-1, f, n+1);
-        ok = 1;
-    }
-    else if (here > mesh[x][y+1]){
-        drop_water(mesh, x, y+1, f, n+1);
-        ok = 1;
-    }
-    if (!ok)
-        mesh[x][y] += (n+1)*f;
 }
 
-void draw_mesh(framebuffer_t *buf, float **points, int x, int y)
+void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, int mode)
 {
     int size = 1;
-    sfVector2f *vec = malloc(sizeof(sfVector2u));
     sfVector2f *vec1 = malloc(sizeof(sfVector2u));
+    sfVector2f *vec2 = malloc(sizeof(sfVector2u));
     sfVector2f *vec3 = malloc(sizeof(sfVector2u));
+    sfVector2f *vec4 = malloc(sizeof(sfVector2u));
+    sfColor color_water = sfBlue;
+    sfColor color_snow = sfWhite;
+    sfColor color_grass = sfGreen;
+    sfColor color;
+
+    my_clear_buffer(buf);
+    static sfConvexShape *shape = 0;
+    if (!shape){
+        shape = sfConvexShape_create();
+        sfConvexShape_setPointCount(shape, 4);
+    }
 
     for (int i = 0; i < x*y; i++){
         points[i][2] = -points[i][2];
         points[i][0] = points[i][0]*size/points[i][2]*32*8 + SCREEN_X/2;
         points[i][1] = points[i][1]*size/points[i][2]*32*8 + SCREEN_Y/2;
     }
+    int i_x_s = 1;
+    int i_y_s = 1;
+    int i_x_e = x-1;
+    int i_y_e = y-1;
+    int i_x_inc = 1;
+    int i_y_inc = 1;
+    int a = 0;
+    if (points[0][1] - points[1][1] < 0){
+        a += 1;
+    } else{
 
-    for (int i = y+1; i < x*y; i++){
-        if (i % y == 0 || points[i][2] < 0  || points[i][0] > SCREEN_X || points[i][0] < 0 || points[i][1] > SCREEN_Y || points[i][1] < 0)
-            continue;
-        //printf("%f %f %f %f\n", points[i][0], points[i][1], points[i][2], points[i][3]);
-        vec->x = points[i][0];
-        vec->y = points[i][1];
-
-        vec1->x = points[i-1][0];
-        vec1->y = points[i-1][1];
-
-        vec3->x = points[i-y][0];
-        vec3->y = points[i-y][1];
-        sfColor color = {255, 255, 255, 255};
-        my_draw_line(buf, vec, vec1, color);
-        my_draw_line(buf, vec, vec3, color);
-        //my_put_pixel(buf, points[i][0]*size + 512, points[i][1]*size + 512, sfWhite);
     }
-    free(vec), free(vec1), free(vec3);
+    if (points[0][2] - points[y][2] < 0){
+        a += 2;
+    } else {
+
+    }
+    sfVector2u vecf[] = {points[0][0], points[0][1]};
+    my_draw_circle(buf, *vecf, 10, &sfRed);
+    vecf->x = points[y][0];
+    vecf->y = points[y][1];
+    my_draw_circle(buf, *vecf, 10, &sfBlue);
+    vecf->x = points[1][0];
+    vecf->y = points[1][1];
+    my_draw_circle(buf, *vecf, 10, &sfBlack);
+
+    printf("%i\n", a);
+    for (int i_y = i_y_s; i_y != i_y_e; i_y += i_y_inc){
+        for (int i_x = i_x_s; i_x != i_y_e; i_x += i_x_inc){
+            int i = i_y*y+i_x;
+            if (i % y == 0 || points[i][2] < 0  || points[i][0] > SCREEN_X || points[i][0] < 0 || points[i][1] > SCREEN_Y || points[i][1] < 0)
+                continue;
+            vec1->x = points[i][0];
+            vec1->y = points[i][1];
+            if (vec1->x > SCREEN_X || vec1->x < 0 || vec1->y > SCREEN_Y || vec1->y < 0 || points[i][2] > 200)
+            continue;
+
+
+            vec2->x = points[i-y][0];
+            vec2->y = points[i-y][1];
+            if (vec2->x > SCREEN_X || vec2->x < 0 || vec2->y > SCREEN_Y || vec2->y < 0)
+                continue;
+
+            vec3->x = points[i-y-1][0];
+            vec3->y = points[i-y-1][1];
+            if (vec3->x > SCREEN_X || vec3->x < 0 || vec3->y > SCREEN_Y || vec3->y < 0)
+            continue;
+
+            vec4->x = points[i-1][0];
+            vec4->y = points[i-1][1];
+            if (vec4->x > SCREEN_X || vec4->x < 0 || vec4->y > SCREEN_Y || vec4->y < 0)
+            continue;
+
+
+            float height = (mesh[i%x][i/x] + mesh[i%x-1][i/x-1] +
+            mesh[i%x][i/x-1] + mesh[i%x-1][i/x])/4;
+
+            if (height < -10)
+                color = sfBlue;
+            else if (height > -10 && height < 10)
+                color = color_grass;
+            else
+                color = color_snow;
+
+            if (mode == 1){
+                sfConvexShape_setPoint(shape, 0, *vec1);
+                sfConvexShape_setPoint(shape, 1, *vec2);
+                sfConvexShape_setPoint(shape, 2, *vec3);
+                sfConvexShape_setPoint(shape, 3, *vec4);
+                sfConvexShape_setFillColor(shape, color);
+                sfRenderWindow_drawConvexShape(window_g, shape, 0);
+            } else if (mode == 2){
+                my_draw_line(buf, vec1, vec2, color);
+                my_draw_line(buf, vec1, vec4, color);
+            }
+        }
+    }
+    free(vec1), free(vec2), free(vec3), free(vec4);
 }
 
 void free_mesh(float **mesh, int x, int y)
@@ -260,8 +336,8 @@ typedef struct map
 {
     lld_t *chunk_x;
     lld_t *chunk_y;
-    int chunk_size;
-    int draw_d;
+    int chunk_size; //in point
+    int draw_d; //in chunk
 } map_t;
 
 //main
@@ -269,54 +345,77 @@ int main(int ac, char **av)
 {
     int size_x = 256;
     int size_y = 256;
-    float **mesh = create_mesh(size_x, size_y, 9);
+    float **mesh = create_mesh(size_x, size_y, 7);
     float **points2;
     float **points;
     map_t *map = malloc(sizeof(map_t));
     map->draw_d = 100;
-
+    map->chunk_x = lld_init();
+    map->chunk_y = lld_init();
     float *mat_start = mat3_init();
-    mat3_rz(mat_start, -45.0/180*3.14);
-    mat3_rx(mat_start, 70.0/180*3.14);
-    mat3_tz(mat_start, -100);
+    //mat3_rz(mat_start, -45.0/180*3.14);
+    //mat3_rx(mat_start, 70.0/180*3.14);
+    //mat3_tz(mat_start, -100);
+    mat3_ttx(mat_start, size_x/2);
+    mat3_tty(mat_start, size_y/2);
+    mat3_rx(mat_start, -3.14/2);
 
-    //float *mat_play = mat3_init();
-
-    //points2 = rotate_points(points, mat_start);
     sfVector2i mouse_o;
     sfVector2i mouse;
+    mouse.x = 0;
+    mouse.y = 0;
 
-    for (int frame_nb = 0; frame_nb < 6000; frame_nb++){
+    sfEvent event;
+    int mv = 0;
+    for (int frame_nb = 0; frame_nb < 6000000000; frame_nb++){
         framebuffer_t *buf = draw();
-        my_clear_buffer(buf);
+        while (sfRenderWindow_pollEvent(window_g, &event))
+            if (event.type == sfEvtClosed)
+                exit (0);
 
+        //my_clear_buffer(buf);
+        points = mesh_to_points(mesh, size_x, size_y);
+        points2 = rotate_points(points, mat_start);
+        draw_mesh(buf, points2, size_x, size_y, mesh, mv+1);
+        mv = 0;
+        free_points(points2);
+        free_points(points);
         printf("frame %i\n", frame_nb);
-        //if (!(frame_nb%1))
-        //    drop_water(mesh, size_x/2, size_y/2, 0.01, 0);
+        for (int i = 0; i < 50; i++)
+            drop_water(mesh, rand()%254+1, rand()%254+1, 0.5, 0);
+
 
         if (sfKeyboard_isKeyPressed(sfKeyZ)){
             mat3_tz(mat_start, 1);
+            mv = 1;
         }
         if (sfKeyboard_isKeyPressed(sfKeyS)){
             mat3_tz(mat_start, -1);
+            mv = 1;
         }
         if (sfKeyboard_isKeyPressed(sfKeyQ)){
             mat3_tx(mat_start, 1);
+            mv = 1;
         }
         if (sfKeyboard_isKeyPressed(sfKeyD)){
             mat3_tx(mat_start, -1);
+            mv = 1;
         }
         if (sfKeyboard_isKeyPressed(sfKeyE)){
             mat3_ty(mat_start, 1);
+            mv = 1;
         }
         if (sfKeyboard_isKeyPressed(sfKeyA)){
             mat3_ty(mat_start, -1);
+            mv = 1;
         }
         if (sfKeyboard_isKeyPressed(sfKeyW)){
             mat3_rz(mat_start, 1.0/180*3.14);
+            mv = 1;
         }
         if (sfKeyboard_isKeyPressed(sfKeyX)){
             mat3_rz(mat_start, -1.0/180*3.14);
+            mv = 1;
         }
         mouse = sfMouse_getPosition(0);
         if (sfMouse_isButtonPressed(sfMouseLeft)){
@@ -324,13 +423,27 @@ int main(int ac, char **av)
             float vy = mouse.y - mouse_o.y;
             mat3_rx(mat_start, vy/180);
             mat3_ry(mat_start, -vx/180);
+            mv = 1;
         }
         mouse_o = mouse;
-        points = mesh_to_points(mesh, size_x, size_y);
-        points2 = rotate_points(points, mat_start);
-        draw_mesh(buf, points2, size_x, size_y);
-        free_points(points2);
-        free_points(points);
+
+        float *mat_inv = mat3_inv(mat_start);
+        float *mat_pos = mat3_multiply(mat_inv, mat_start);
+        free(mat_inv);
+        //float *mat_r = mat3_copy(mat_start);
+        //print_mat(mat_pos);
+
+        /*if ((int)mat_pos[3] >= size_x-1)
+            mat3_ttx(mat_start, -254);
+        if ((int)mat_pos[3] <= 1)
+            mat3_ttx(mat_start, 254);
+        if ((int)mat_pos[7] >= size_y-1)
+            mat3_tty(mat_start, -254);
+        if ((int)mat_pos[7] <= 1)
+            mat3_tty(mat_start, 254);
+
+        float mesh_z = mesh[(int)mat_pos[3]][(int)mat_pos[7]] - mat_pos[11]+10;
+        mat3_ttz(mat_start, mesh_z);*/
     }
     free_mesh(mesh, size_x, size_y);
     free(mat_start);

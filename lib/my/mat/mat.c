@@ -34,3 +34,11 @@ float *mat3_multiply(float *mat1, float *mat2)
     }
     return (mat);
 }
+
+float *mat3_copy(float *mat)
+{
+    float *matt = malloc(sizeof(float) * 16);
+    for (int i = 0; i < 16; i++)
+        matt[i] = mat[i];
+    return (matt);
+}
