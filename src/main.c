@@ -242,8 +242,8 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
 {
     static float sun = 0;
     sun += PI/600;
-    sun > PI*2 ? sun = 0 : 0;
     float sun_angle = fabsf(tan(sun));
+    sin(sun) < 0 ? sun_angle *= -1 : 0;
     printf("sun %f %f\n", sun_angle, sun);
     static char **sun_grid = 0;
     if (sun_grid == 0){
@@ -255,8 +255,8 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
         float start = mesh[yy][sun < PI/2 ? 0 : x-1];
         for (int xx = sun < PI/2 ? 0 : x-1; xx < x && 0 <= xx; xx += sun < PI/2 ? 1 : -1){
             start -= sun_angle;
-            if (mesh[yy][xx] >= start && sun < PI){
-                start = mesh[yy][xx];
+            if ((mesh[yy][xx]) >= start){
+                start = (mesh[yy][xx]);
                 sun_grid[yy][xx] = 1;
             } else
                 sun_grid[yy][xx] = 0;
@@ -340,7 +340,7 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
         points[i][1] = points[i][1]*size/points[i][2]*32*8 + SCREEN_Y/2;
     }
 
-    {//db
+    /*{//db
         sfVector2u vecf[] = {points[-2][0], points[-2][1]};
         my_draw_circle(buf, *vecf, 10, &sfRed);
         vecf->x = points[-1][0];
@@ -359,7 +359,7 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
         vecf->x = points[y*x-y+1][0];
         vecf->y = points[y*x-y+1][1];
         my_draw_circle(buf, *vecf, 10, &sfGreen);
-    }//db
+    }//db*/
 
     float max_height = 0;
     float min_height = 0;
@@ -410,11 +410,12 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
             //float pente = fabsf(height - mesh[i%x][i/x]) + fabsf(height - mesh[i%x-1][i/x-1]) + fabsf(height - mesh[i%x][i/x-1]) + fabsf(height - mesh[i%x-1][i/x]);
             //pente /= 4.0;
             //printf("pente %f\n", pente);
-            int grass = gauss(height, 15, 10, 0) * 500;
-            int snow = gauss(height, 5, 100, 15) * 500;
-            int water = gauss(height, 100, 5, -20) * 500;
+            int water = gauss(height, 100, 1, -20) * 500;
+            int grass = gauss(height, 7, 5 , -10) * 500;
+            float stone = gauss(height, 1, 10, 10)*500;
+            int snow = gauss(height, 10, 100, 17) * 500;
 
-            sfColor color[] = {min_i(snow, 255), min_i(grass+snow, 255), min_i(water+snow, 255), 255};
+            sfColor color[] = {min_i(snow+stone, 255), min_i(grass+snow+stone, 255), min_i(water+snow+stone, 255), 255};
             if (sun_grid[i%x][i/x] == 0)
                 color->r /= 2, color->g /= 2, color->b /= 2;
             if (mode == 1){
@@ -464,6 +465,9 @@ int main(int ac, char **av)
     int size_x = 256;
     int size_y = 256;
     float **mesh = create_mesh(size_x, size_y, 7);
+    for (int i = 0; i < 50000; i++)
+        drop_water(mesh, rand()%254+1, rand()%254+1, 0.5, 0);
+
     float **points2;
     float **points;
     map_t *map = malloc(sizeof(map_t));
@@ -499,9 +503,6 @@ int main(int ac, char **av)
         free_points(points2);
         free_points(points);
         //printf("frame %i\n", frame_nb);
-        for (int i = 0; i < 50; i++)
-            drop_water(mesh, rand()%254+1, rand()%254+1, 0.5, 0);
-
 
         if (sfKeyboard_isKeyPressed(sfKeyZ)){
             mat3_tz(mat_start, 1);
