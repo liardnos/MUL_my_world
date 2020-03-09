@@ -14,6 +14,8 @@
 #include <math.h>
 #include <stdio.h>
 
+#define E 2.71828182846
+
 sfRenderWindow *window_g;
 
 /*
@@ -224,6 +226,17 @@ void drop_water(float **mesh, int x, int y, float f, float n)
     }
 }
 
+float gauss(float x, float dec1, float dec2, float off)
+{
+    x -= off;
+    return (1/(pow(E, x/dec2)+pow(E, -x/dec1)));
+}
+
+int min_i(int a, int b)
+{
+    return (a > b ? b : a);
+}
+
 void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, int mode)
 {
     int size = 1;
@@ -261,8 +274,8 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
 
     float mid = cos(3.14/4);
 
-    points[-1][2] *= pow(pow(points[-1][0], 2) + pow(points[-1][1], 2), 0.5);
-    points[-2][2] *= pow(pow(points[-2][0], 2) + pow(points[-2][1], 2), 0.5);
+    points[-1][2] *= pow(pow(points[-2][0], 2) + pow(points[-2][1], 2), 0.5);
+    points[-2][2] *= pow(pow(points[-1][0], 2) + pow(points[-1][1], 2), 0.5);
 
     if (points[-1][2] > -mid && points[-1][2] < 0 && points[-2][2] < -mid)
         printf("1\n"), flag = 0x0;
@@ -325,6 +338,15 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
         my_draw_circle(buf, *vecf, 10, &sfGreen);
     }//db
 
+    float max_height = 0;
+    float min_height = 0;
+    for (int i = 0; mesh[i]; i++){
+        for (int ii = 0; mesh[i][ii]; ii++){
+        mesh[i][ii] > max_height ? max_height = mesh[i][ii] : 0;
+        mesh[i][ii] < min_height ? min_height = mesh[i][ii] : 0;
+        }
+    }
+
     int tmp2 = 0;
     for (int i_x = i_x_s; i_x != i_x_e; i_x += i_x_inc){
         for (int i_y = i_y_s; i_y != i_y_e; i_y += i_y_inc){
@@ -363,23 +385,21 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
             float height = (mesh[i%x][i/x] + mesh[i%x-1][i/x-1] +
             mesh[i%x][i/x-1] + mesh[i%x-1][i/x])/4;
 
-            if (height < -10)
-                color = sfBlue;
-            else if (height > -10 && height < 10)
-                color = color_grass;
-            else
-                color = color_snow;
+            int grass = gauss(height, 15, 10, 0)*500;
+            int snow = gauss(height, 5, 100, 20)*500;
+            int water = gauss(height, 100, 5, -20)*500;
 
+            sfColor color[] = {min_i(snow, 255), min_i(grass+snow, 255), min_i(water+snow, 255), 255};
             if (mode == 1){
                 sfConvexShape_setPoint(shape, 0, *vec1);
                 sfConvexShape_setPoint(shape, 1, *vec2);
                 sfConvexShape_setPoint(shape, 2, *vec3);
                 sfConvexShape_setPoint(shape, 3, *vec4);
-                sfConvexShape_setFillColor(shape, color);
+                sfConvexShape_setFillColor(shape, *color);
                 sfRenderWindow_drawConvexShape(window_g, shape, 0);
             } else if (mode == 2){
-                my_draw_line(buf, vec1, vec2, color);
-                my_draw_line(buf, vec1, vec4, color);
+                my_draw_line(buf, vec1, vec2, *color);
+                my_draw_line(buf, vec1, vec4, *color);
             }
         }
     }
