@@ -104,7 +104,7 @@ float ***grid_grad(int x, int y)
 }
 
 float lerp(float a, float b, float w) {
-    return (1.0f - w)*a + w*b;
+    return (1.0 - w)*a + w*b;
 }
 
 float dotGridGradient(int ix, int iy, float x, float y)
@@ -261,6 +261,9 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
 
     float mid = cos(3.14/4);
 
+    points[-1][2] *= pow(pow(points[-1][0], 2) + pow(points[-1][1], 2), 0.5);
+    points[-2][2] *= pow(pow(points[-2][0], 2) + pow(points[-2][1], 2), 0.5);
+
     if (points[-1][2] > -mid && points[-1][2] < 0 && points[-2][2] < -mid)
         printf("1\n"), flag = 0x0;
     else if (points[-1][2] < mid && points[-1][2] > 0 && points[-2][2] < -mid)
@@ -301,7 +304,7 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
         points[i][1] = points[i][1]*size/points[i][2]*32*8 + SCREEN_Y/2;
     }
 
-    //db
+    {//db
         sfVector2u vecf[] = {points[-2][0], points[-2][1]};
         my_draw_circle(buf, *vecf, 10, &sfRed);
         vecf->x = points[-1][0];
@@ -320,7 +323,7 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
         vecf->x = points[y*x-y+1][0];
         vecf->y = points[y*x-y+1][1];
         my_draw_circle(buf, *vecf, 10, &sfGreen);
-    //db
+    }//db
 
     int tmp2 = 0;
     for (int i_x = i_x_s; i_x != i_x_e; i_x += i_x_inc){
