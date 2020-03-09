@@ -27,7 +27,8 @@ framebuffer_t *draw(void)
         sfSprite_setTexture(sprite, texture, sfTrue);
         window_g = window;
     }
-    sfTexture_updateFromPixels(texture, fb->pixels, mode.width, mode.height, 0, 0);
+    sfTexture_updateFromPixels(texture, fb->pixels, mode.width, mode.height, 0,
+    0);
     sfRenderWindow_drawSprite(window, sprite, 0);
     sfRenderWindow_display(window);
     sfRenderWindow_clear(window, sfBlack);

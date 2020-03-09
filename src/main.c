@@ -163,13 +163,23 @@ float **create_mesh(int x, int y, int d)
 
 float **mesh_to_points(float **mesh, int x, int y)
 {
-    float **points = malloc(sizeof(float *) * (x*y+1));
-    points[x*y] = 0;
-    for (int i = 0; i < x*y; i++)
+    float **points = malloc(sizeof(float *) * (x*y+1+2));
+    points[x*y+2] = 0;
+    for (int i = 0; i < x*y+2; i++)
         points[i] = malloc(sizeof(float) * 4);
 
-    int i = 0;
-    for (; i < x; i++){
+    points[0][0] = 1;//cos(3.14/4);
+    points[0][1] = 0;//sin(3.14/4);
+    points[0][2] = 0;
+    points[0][3] = 0;
+
+    points[1][0] = 0;//-cos(3.14/4);
+    points[1][1] = 1;//sin(3.14/4);
+    points[1][2] = 0;
+    points[1][3] = 0;
+    points += 2;
+
+    for (int i = 0; i < x; i++){
         for (int ii = 0; ii < y; ii++){
             points[i+ii*x][0] = -i;
             points[i+ii*x][1] = -ii;
@@ -177,6 +187,7 @@ float **mesh_to_points(float **mesh, int x, int y)
             points[i+ii*x][3] = 1;
         }
     }
+    points -= 2;
     return (points);
 }
 
@@ -232,46 +243,101 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
         sfConvexShape_setPointCount(shape, 4);
     }
 
-    for (int i = 0; i < x*y; i++){
+    int i_x_s = 1;
+    int i_y_s = 1;
+    int i_x_e = x - 1;
+    int i_y_e = y - 1;
+    int i_x_inc = 1;
+    int i_y_inc = 1;
+    char flag = 0;
+    int tmp;
+    int a = 0;
+    points += 2;
+
+    //draw prioryti
+    static help = 0;
+    help++;
+    unsigned long int tab = 0x0;
+
+    float mid = cos(3.14/4);
+
+    if (points[-1][2] > -mid && points[-1][2] < 0 && points[-2][2] < -mid)
+        printf("1\n"), flag = 0x0;
+    else if (points[-1][2] < mid && points[-1][2] > 0 && points[-2][2] < -mid)
+        printf("2\n"), flag = 0x1;
+    else if (points[-1][2] > mid && points[-2][2] > -mid && points[-2][2] < 0)
+        printf("3\n"), flag = 0x6;
+    else if (points[-1][2] > mid && points[-2][2] < mid && points[-2][2] > 0)
+        printf("4\n"), flag = 0x7;
+    else if (points[-1][2] < mid && points[-1][2] > 0 && points[-2][2] > mid)
+        printf("5\n"), flag = 0x3;
+    else if (points[-1][2] < 0 && points[-1][2] > -mid && points[-2][2] > mid)
+        printf("6\n"), flag = 0x2;
+    else if (points[-1][2] < -mid && points[-2][2] > 0 && points[-2][2] < mid)
+        printf("7\n"), flag = 0x5;
+    else if (points[-1][2] < -mid && points[-2][2] < 0 && points[-2][2] > -mid)
+        printf("8\n"), flag = 0x4;
+    printf("%i\n", flag);
+
+    if (flag & 0x1){
+        tmp = i_y_e;
+        i_y_e = i_y_s;
+        i_y_s = tmp;
+        i_y_inc = -1;
+    }
+
+    if (flag & 0x2){
+        tmp = i_x_e;
+        i_x_e = i_x_s;
+        i_x_s = tmp;
+        i_x_inc = -1;
+    }
+
+    printf("%f %f\n", (points[-2][2]), (points[-1][2]));
+
+    for (int i = -2; i < x*y; i++){
         points[i][2] = -points[i][2];
         points[i][0] = points[i][0]*size/points[i][2]*32*8 + SCREEN_X/2;
         points[i][1] = points[i][1]*size/points[i][2]*32*8 + SCREEN_Y/2;
     }
-    int i_x_s = 1;
-    int i_y_s = 1;
-    int i_x_e = x-1;
-    int i_y_e = y-1;
-    int i_x_inc = 1;
-    int i_y_inc = 1;
-    int a = 0;
-    if (points[0][1] - points[1][1] < 0){
-        a += 1;
-    } else{
 
-    }
-    if (points[0][2] - points[y][2] < 0){
-        a += 2;
-    } else {
+    //db
+        sfVector2u vecf[] = {points[-2][0], points[-2][1]};
+        my_draw_circle(buf, *vecf, 10, &sfRed);
+        vecf->x = points[-1][0];
+        vecf->y = points[-1][1];
+        my_draw_circle(buf, *vecf, 10, &sfBlue);
 
-    }
-    sfVector2u vecf[] = {points[0][0], points[0][1]};
-    my_draw_circle(buf, *vecf, 10, &sfRed);
-    vecf->x = points[y][0];
-    vecf->y = points[y][1];
-    my_draw_circle(buf, *vecf, 10, &sfBlue);
-    vecf->x = points[1][0];
-    vecf->y = points[1][1];
-    my_draw_circle(buf, *vecf, 10, &sfBlack);
+        vecf->x = points[0][0];
+        vecf->y = points[0][1];
+        my_draw_circle(buf, *vecf, 10, &sfGreen);
+        vecf->x = points[x-1][0];
+        vecf->y = points[x-1][1];
+        my_draw_circle(buf, *vecf, 10, &sfGreen);
+        vecf->x = points[y*x-1][0];
+        vecf->y = points[y*x-1][1];
+        my_draw_circle(buf, *vecf, 10, &sfGreen);
+        vecf->x = points[y*x-y+1][0];
+        vecf->y = points[y*x-y+1][1];
+        my_draw_circle(buf, *vecf, 10, &sfGreen);
+    //db
 
-    printf("%i\n", a);
-    for (int i_y = i_y_s; i_y != i_y_e; i_y += i_y_inc){
-        for (int i_x = i_x_s; i_x != i_y_e; i_x += i_x_inc){
-            int i = i_y*y+i_x;
+    int tmp2 = 0;
+    for (int i_x = i_x_s; i_x != i_x_e; i_x += i_x_inc){
+        for (int i_y = i_y_s; i_y != i_y_e; i_y += i_y_inc){
+            int i;
+            if (flag & 0x4)
+                i = i_y+i_x*x;
+            else
+                i = i_y*y+i_x;
+            tmp2++;
+            //if (tmp2 > 128)
+            //    return;
             if (i % y == 0 || points[i][2] < 0  || points[i][0] > SCREEN_X || points[i][0] < 0 || points[i][1] > SCREEN_Y || points[i][1] < 0)
                 continue;
             vec1->x = points[i][0];
             vec1->y = points[i][1];
-            if (vec1->x > SCREEN_X || vec1->x < 0 || vec1->y > SCREEN_Y || vec1->y < 0 || points[i][2] > 200)
+            if (vec1->x > SCREEN_X || vec1->x < 0 || vec1->y > SCREEN_Y || vec1->y < 0 || points[i][2] > 2000000)
             continue;
 
 
@@ -343,6 +409,8 @@ typedef struct map
 //main
 int main(int ac, char **av)
 {
+    int a;
+    srand(time(0));
     int size_x = 256;
     int size_y = 256;
     float **mesh = create_mesh(size_x, size_y, 7);
@@ -380,7 +448,7 @@ int main(int ac, char **av)
         mv = 0;
         free_points(points2);
         free_points(points);
-        printf("frame %i\n", frame_nb);
+        //printf("frame %i\n", frame_nb);
         for (int i = 0; i < 50; i++)
             drop_water(mesh, rand()%254+1, rand()%254+1, 0.5, 0);
 
