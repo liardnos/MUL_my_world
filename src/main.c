@@ -15,6 +15,7 @@
 #include <stdio.h>
 
 #define E 2.71828182846
+#define PI 3.14159265359
 
 sfRenderWindow *window_g;
 
@@ -170,13 +171,13 @@ float **mesh_to_points(float **mesh, int x, int y)
     for (int i = 0; i < x*y+2; i++)
         points[i] = malloc(sizeof(float) * 4);
 
-    points[0][0] = 1;//cos(3.14/4);
-    points[0][1] = 0;//sin(3.14/4);
+    points[0][0] = 1;//cos(PI/4);
+    points[0][1] = 0;//sin(PI/4);
     points[0][2] = 0;
     points[0][3] = 0;
 
-    points[1][0] = 0;//-cos(3.14/4);
-    points[1][1] = 1;//sin(3.14/4);
+    points[1][0] = 0;//-cos(PI/4);
+    points[1][1] = 1;//sin(PI/4);
     points[1][2] = 0;
     points[1][3] = 0;
     points += 2;
@@ -239,6 +240,28 @@ int min_i(int a, int b)
 
 void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, int mode)
 {
+    static float sun = 0;
+    sun += PI/600;
+    sun > PI*2 ? sun = 0 : 0;
+    float sun_angle = fabsf(tan(sun));
+    printf("sun %f %f\n", sun_angle, sun);
+    static char **sun_grid = 0;
+    if (sun_grid == 0){
+        sun_grid = malloc(sizeof(char *) * y);
+        for (int i = 0; i < y; i++)
+            sun_grid[i] = malloc(sizeof(char) * x);
+    }
+    for (int yy = 0; yy < y; yy++){
+        float start = mesh[yy][sun < PI/2 ? 0 : x-1];
+        for (int xx = sun < PI/2 ? 0 : x-1; xx < x && 0 <= xx; xx += sun < PI/2 ? 1 : -1){
+            start -= sun_angle;
+            if (mesh[yy][xx] >= start && sun < PI){
+                start = mesh[yy][xx];
+                sun_grid[yy][xx] = 1;
+            } else
+                sun_grid[yy][xx] = 0;
+        }
+    }
     int size = 1;
     sfVector2f *vec1 = malloc(sizeof(sfVector2u));
     sfVector2f *vec2 = malloc(sizeof(sfVector2u));
@@ -272,10 +295,10 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
     help++;
     unsigned long int tab = 0x0;
 
-    float mid = cos(3.14/4);
+    float mid = cos(PI/4);
 
-    points[-1][2] *= pow(pow(points[-2][0], 2) + pow(points[-2][1], 2), 0.5);
-    points[-2][2] *= pow(pow(points[-1][0], 2) + pow(points[-1][1], 2), 0.5);
+    //points[-1][2] = pow(pow(points[-1][1], 2) + pow(points[-1][0], 2), 0.5);
+    //points[-2][2] = pow(pow(points[-2][1], 2) + pow(points[-2][0], 2), 0.5);
 
     if (points[-1][2] > -mid && points[-1][2] < 0 && points[-2][2] < -mid)
         printf("1\n"), flag = 0x0;
@@ -384,12 +407,16 @@ void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, i
 
             float height = (mesh[i%x][i/x] + mesh[i%x-1][i/x-1] +
             mesh[i%x][i/x-1] + mesh[i%x-1][i/x])/4;
-
-            int grass = gauss(height, 15, 10, 0)*500;
-            int snow = gauss(height, 5, 100, 20)*500;
-            int water = gauss(height, 100, 5, -20)*500;
+            //float pente = fabsf(height - mesh[i%x][i/x]) + fabsf(height - mesh[i%x-1][i/x-1]) + fabsf(height - mesh[i%x][i/x-1]) + fabsf(height - mesh[i%x-1][i/x]);
+            //pente /= 4.0;
+            //printf("pente %f\n", pente);
+            int grass = gauss(height, 15, 10, 0) * 500;
+            int snow = gauss(height, 5, 100, 15) * 500;
+            int water = gauss(height, 100, 5, -20) * 500;
 
             sfColor color[] = {min_i(snow, 255), min_i(grass+snow, 255), min_i(water+snow, 255), 255};
+            if (sun_grid[i%x][i/x] == 0)
+                color->r /= 2, color->g /= 2, color->b /= 2;
             if (mode == 1){
                 sfConvexShape_setPoint(shape, 0, *vec1);
                 sfConvexShape_setPoint(shape, 1, *vec2);
@@ -444,12 +471,12 @@ int main(int ac, char **av)
     map->chunk_x = lld_init();
     map->chunk_y = lld_init();
     float *mat_start = mat3_init();
-    //mat3_rz(mat_start, -45.0/180*3.14);
-    //mat3_rx(mat_start, 70.0/180*3.14);
+    //mat3_rz(mat_start, -45.0/180*PI);
+    //mat3_rx(mat_start, 70.0/180*PI);
     //mat3_tz(mat_start, -100);
     mat3_ttx(mat_start, size_x/2);
     mat3_tty(mat_start, size_y/2);
-    mat3_rx(mat_start, -3.14/2);
+    mat3_rx(mat_start, -PI/2);
 
     sfVector2i mouse_o;
     sfVector2i mouse;
@@ -458,7 +485,7 @@ int main(int ac, char **av)
 
     sfEvent event;
     int mv = 0;
-    for (int frame_nb = 0; frame_nb < 6000000000; frame_nb++){
+    for (int frame_nb = 0; frame_nb < 1000000; frame_nb++){
         framebuffer_t *buf = draw();
         while (sfRenderWindow_pollEvent(window_g, &event))
             if (event.type == sfEvtClosed)
@@ -501,11 +528,11 @@ int main(int ac, char **av)
             mv = 1;
         }
         if (sfKeyboard_isKeyPressed(sfKeyW)){
-            mat3_rz(mat_start, 1.0/180*3.14);
+            mat3_rz(mat_start, 1.0/180*PI);
             mv = 1;
         }
         if (sfKeyboard_isKeyPressed(sfKeyX)){
-            mat3_rz(mat_start, -1.0/180*3.14);
+            mat3_rz(mat_start, -1.0/180*PI);
             mv = 1;
         }
         mouse = sfMouse_getPosition(0);
