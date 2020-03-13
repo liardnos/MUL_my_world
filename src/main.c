@@ -202,9 +202,8 @@ int min_i(int a, int b)
 char calc_flag(float **points)
 {
     float mid = cos(PI/4);
-    char flag;
-    flag = (points[-1][2] > -mid && points[-1][2] < 0 && points[-2][2] < -mid) ?
-        0x0 :
+    char flag =
+    (points[-1][2] > -mid && points[-1][2] < 0 && points[-2][2] < -mid) ? 0x0 :
     (points[-1][2] < mid && points[-1][2] > 0 && points[-2][2] < -mid) ? 0x1 :
     (points[-1][2] > mid && points[-2][2] > -mid && points[-2][2] < 0) ? 0x6 :
     (points[-1][2] > mid && points[-2][2] < mid && points[-2][2] > 0) ? 0x7 :
@@ -296,38 +295,34 @@ void draw_shape(sfConvexShape *shape, sfVector2f **vecs, sfColor color,
     }
 }
 
+void aply_flags(char flag, float **points, int *i_v, int xy)
+{
+    int tmp;
+    flag & 0x1 ? tmp = i_v[3], i_v[3] = i_v[1], i_v[1] = tmp, i_v[5] = -1 : 0;
+    flag & 0x2 ? tmp = i_v[2], i_v[2] = i_v[0], i_v[0] = tmp, i_v[4] = -1 : 0;
+    for (int i = -2; i < xy; i++){
+        points[i][2] = -points[i][2];
+        points[i][0] = points[i][0] * 2 / points[i][2] * 32 * 8 + SCREEN_X/2;
+        points[i][1] = points[i][1] * 2 / points[i][2] * 32 * 8 + SCREEN_Y/2;
+    }
+}
+
 void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, int mode)
 {
     char **sun_grid = calc_sun_grid(mesh, x, y);
-    int size = 1;
     my_clear_buffer(buf);
-    static sfConvexShape *shape = 0;
-    !shape ? shape = sfConvexShape_create(),
+    static sfConvexShape *shape = 0; !shape ? shape = sfConvexShape_create(),
     sfConvexShape_setPointCount(shape, 4) : 0;
-
     int i_v[] = {1, 1, x-1, y-1, 1, 1};
     points += 2;
-    int tmp;
-
     char flag = calc_flag(points);
-    flag & 0x1 ? tmp = i_v[3], i_v[3] = i_v[1], i_v[1] = tmp, i_v[5] = -1 : 0;
-    flag & 0x2 ? tmp = i_v[2], i_v[2] = i_v[0], i_v[0] = tmp, i_v[4] = -1 : 0;
-
-    for (int i = -2; i < x*y; i++){
-        points[i][2] = -points[i][2];
-        points[i][0] = points[i][0]*size/points[i][2]*32*8 + SCREEN_X/2;
-        points[i][1] = points[i][1]*size/points[i][2]*32*8 + SCREEN_Y/2;
-    }
+    aply_flags(flag, points, i_v, x*y);
     sfVector2f **vecs = malloc(sizeof(sfVector2u *) * 4);
     for (int i = 0; i < 4; i++) vecs[i] = malloc(sizeof(sfVector2f));
-
     for (int i_x = i_v[0]; i_x != i_v[2]; i_x += i_v[4]){
         for (int i_y = i_v[1]; i_y != i_v[3]; i_y += i_v[5]){
             int i = (flag & 0x4) ? i_y+i_x*x : i_y*y+i_x;
-
-            if (did_we_draw(vecs, points, i, x))
-                continue;
-
+            if (did_we_draw(vecs, points, i, x)) continue;
             sfColor color = calc_color(mesh, i, x, sun_grid);
             color.a = mode == 2 ? 254 : 255;
             draw_shape(shape, vecs, color, buf);
