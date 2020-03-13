@@ -19,29 +19,13 @@
 
 sfRenderWindow *window_g;
 
-/*
-typedef struct mesh
+typedef struct world
 {
-    int size_x;
-    int size_y;
-    float **val;
-} mesh_t;
+    float **grid;
+    unsigned int size_x;
+    unsigned int size_y;
+} world_t;
 
-typedef struct point
-{
-    float x;
-    float y;
-    float z;
-    float t;
-} point_t;
-
-typedef struct points
-{
-    point_t *p_s;
-    int p_nb;
-} points_t;
-*/
-//rotation fonction
 float **copy_points(float **points)
 {
     int nb_p = 0;
@@ -126,16 +110,13 @@ float perlin(float x, float y)
     int x1 = x0 + 1;
     int y0 = (int)y;
     int y1 = y0 + 1;
-
     float sx = x - (float)x0;
     float sy = y - (float)y0;
-
     float n0, n1, ix0, ix1, value;
 
     n0 = dotGridGradient(x0, y0, x, y);
     n1 = dotGridGradient(x1, y0, x, y);
     ix0 = lerp(n0, n1, sx);
-
     n0 = dotGridGradient(x0, y1, x, y);
     n1 = dotGridGradient(x1, y1, x, y);
     ix1 = lerp(n0, n1, sx);
@@ -154,8 +135,6 @@ float **create_mesh(int x, int y, int d)
             mesh[i][ii] = 0;
             for (int d_nb = 0; d_nb < d; d_nb++)
                 mesh[i][ii] += perlin((float)i/(1.1*pow(2, d_nb)), (float)ii/(1.1*pow(2, d_nb)))*pow(2, d_nb);
-            //if (i == 0 || i == x-1 || ii == 0 || ii == y-1)
-            //    mesh[i][ii] += 10000;
 
         }
         mesh[i][ii] = 0;
@@ -170,18 +149,9 @@ float **mesh_to_points(float **mesh, int x, int y)
     points[x*y+2] = 0;
     for (int i = 0; i < x*y+2; i++)
         points[i] = malloc(sizeof(float) * 4);
-
-    points[0][0] = 1;//cos(PI/4);
-    points[0][1] = 0;//sin(PI/4);
-    points[0][2] = 0;
-    points[0][3] = 0;
-
-    points[1][0] = 0;//-cos(PI/4);
-    points[1][1] = 1;//sin(PI/4);
-    points[1][2] = 0;
-    points[1][3] = 0;
+    points[0][0] = 1, points[0][1] = 0, points[0][2] = 0, points[0][3] = 0;
+    points[1][0] = 0, points[1][1] = 1, points[1][2] = 0, points[1][3] = 0;
     points += 2;
-
     for (int i = 0; i < x; i++){
         for (int ii = 0; ii < y; ii++){
             points[i+ii*x][0] = -i;
@@ -194,37 +164,28 @@ float **mesh_to_points(float **mesh, int x, int y)
     return (points);
 }
 
-void drop_water(float **mesh, int x, int y, float f, float n)
+void drop_water(float **mesh, int *xy, float f, float n)
 {
     char ok = 0;
-    if ((x <= 1 || x >= 254 || y <= 1 || y >= 254)){
-        ok = 0;
-    } else {
+    int x = xy[0];
+    int y = xy[1];
+    if (!(x <= 1 || x >= xy[2] - 2 || y <= 1 || y >= xy[3] - 2)){
         float here = mesh[x][y];
-        float drag = 0;
         for (int i = 0; i < 16; i++){
-            int xx = rand()%3-1 + x;
-            int yy = rand()%3-1 + y;
+            int xx = rand() % 3 - 1 + x;
+            int yy = rand() % 3 - 1 + y;
             if (here > mesh[xx][yy]){
-                drag = pow(here - mesh[xx][yy], 0.5) * f-n;
-                drop_water(mesh, xx, yy, f, n+drag);
-                mesh[x][y] -= drag/2;
-                mesh[x-1][y] -= drag/8;
-                mesh[x+1][y] -= drag/8;
-                mesh[x][y-1] -= drag/8;
-                mesh[x][y+1] -= drag/8;
-                ok = 1;
+                float d = pow(here - mesh[xx][yy], 0.5) * f - n;
+                int xxyy[] = {xx, yy, xy[2], xy[3]};
+                drop_water(mesh, xxyy, f, n+d);
+                mesh[x][y] -= d/2, mesh[x-1][y] -= d/8, mesh[x+1][y] -= d/8;
+                mesh[x][y-1] -= d/8, mesh[x][y+1] -= d/8, ok = 1;
                 break;
             }
         }
     }
-    if (!ok){
-        mesh[x+1][y] += n/8;
-        mesh[x-1][y] += n/8;
-        mesh[x][y+1] += n/8;
-        mesh[x][y-1] += n/8;
-        mesh[x][y] += n/2;
-    }
+    !ok ? mesh[x+1][y] += n/8, mesh[x-1][y] += n/8,
+    mesh[x][y+1] += n/8, mesh[x][y-1] += n/8, mesh[x][y] += n/2 : 0;
 }
 
 float gauss(float x, float dec1, float dec2, float off)
@@ -238,200 +199,141 @@ int min_i(int a, int b)
     return (a > b ? b : a);
 }
 
-void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, int mode)
+char calc_flag(float **points)
+{
+    float mid = cos(PI/4);
+    char flag;
+    flag = (points[-1][2] > -mid && points[-1][2] < 0 && points[-2][2] < -mid) ?
+        0x0 :
+    (points[-1][2] < mid && points[-1][2] > 0 && points[-2][2] < -mid) ? 0x1 :
+    (points[-1][2] > mid && points[-2][2] > -mid && points[-2][2] < 0) ? 0x6 :
+    (points[-1][2] > mid && points[-2][2] < mid && points[-2][2] > 0) ? 0x7 :
+    (points[-1][2] < mid && points[-1][2] > 0 && points[-2][2] > mid) ? 0x3 :
+    (points[-1][2] < 0 && points[-1][2] > -mid && points[-2][2] > mid) ? 0x2 :
+    (points[-1][2] < -mid && points[-2][2] > 0 && points[-2][2] < mid) ? 0x5 :
+    points[-1][2] < -mid && points[-2][2] < 0 && points[-2][2] > -mid ? 0x4 : 0;
+    return (flag);
+}
+
+char **calc_sun_grid(float **mesh, int x, int y)
 {
     static float sun = 0;
     sun += PI/600;
     float sun_angle = fabsf(tan(sun));
     sin(sun) < 0 ? sun_angle *= -1 : 0;
-    printf("sun %f %f\n", sun_angle, sun);
     static char **sun_grid = 0;
     if (sun_grid == 0){
         sun_grid = malloc(sizeof(char *) * y);
-        for (int i = 0; i < y; i++)
-            sun_grid[i] = malloc(sizeof(char) * x);
+        for (int i = 0; i < y; i++) sun_grid[i] = malloc(sizeof(char) * x);
     }
     for (int yy = 0; yy < y; yy++){
         float start = mesh[yy][sun < PI/2 ? 0 : x-1];
-        for (int xx = sun < PI/2 ? 0 : x-1; xx < x && 0 <= xx; xx += sun < PI/2 ? 1 : -1){
+        for (int xx = sun < PI/2.0 ? 0 : x-1; xx < x && 0 <= xx; xx += sun < PI/2.0 ? 1 : -1){
             start -= sun_angle;
-            if ((mesh[yy][xx]) >= start){
-                start = (mesh[yy][xx]);
-                sun_grid[yy][xx] = 1;
-            } else
-                sun_grid[yy][xx] = 0;
+            sun_grid[yy][xx] = ((mesh[yy][xx]) >= start) ?
+            start = (mesh[yy][xx]), 1 : 0;
         }
     }
-    int size = 1;
-    sfVector2f *vec1 = malloc(sizeof(sfVector2u));
-    sfVector2f *vec2 = malloc(sizeof(sfVector2u));
-    sfVector2f *vec3 = malloc(sizeof(sfVector2u));
-    sfVector2f *vec4 = malloc(sizeof(sfVector2u));
-    sfColor color_water = sfBlue;
-    sfColor color_snow = sfWhite;
-    sfColor color_grass = sfGreen;
-    sfColor color;
+    return (sun_grid);
+}
 
+char did_we_draw(sfVector2f **vecs, float **points, int i, int y)
+{
+    if (i % y == 0 || points[i][2] < 0  || points[i][0] > SCREEN_X ||
+        points[i][0] < 0 || points[i][1] > SCREEN_Y || points[i][1] < 0)
+        return (1);
+    vecs[0]->x = points[i][0], vecs[0]->y = points[i][1];
+    if (vecs[0]->x > SCREEN_X || vecs[0]->x < 0 || vecs[0]->y > SCREEN_Y
+        || vecs[0]->y < 0 || points[i][2] > 10000) return (1);
+    vecs[1]->x = points[i-y][0], vecs[1]->y = points[i-y][1];
+    if (vecs[1]->x > SCREEN_X || vecs[1]->x < 0 || vecs[1]->y > SCREEN_Y
+        || vecs[1]->y < 0) return (1);
+    vecs[2]->x = points[i-y-1][0], vecs[2]->y = points[i-y-1][1];
+    if (vecs[2]->x > SCREEN_X || vecs[2]->x < 0 || vecs[2]->y > SCREEN_Y
+        || vecs[2]->y < 0) return (1);
+    vecs[3]->x = points[i-1][0], vecs[3]->y = points[i-1][1];
+    if (vecs[3]->x > SCREEN_X || vecs[3]->x < 0 || vecs[3]->y > SCREEN_Y
+        || vecs[3]->y < 0) return (1);
+    return (0);
+}
+
+sfColor calc_color(float **mesh, int i, int x, char **sun_grid)
+{
+    float height = (mesh[i%x][i/x] + mesh[i%x-1][i/x-1] +
+    mesh[i%x][i/x-1] + mesh[i%x-1][i/x])/4;
+    int water = gauss(height, 100, 1, -20) * 500;
+    int grass = gauss(height, 7, 7, -10) * 500;
+    int stone = gauss(height, 1, 10, 10) * 500;
+    int snow = gauss(height, 10, 100, 17) * 500;
+
+    sfColor color[] = {min_i(snow+stone, 255), min_i(grass+snow+stone, 255),
+    min_i(water+snow+stone, 255), 255};
+    if (sun_grid[i%x][i/x] == 0){
+        float div = 0;
+        div += -sun_grid[(i+1)%x][i/x]+1;
+        div += -sun_grid[(i-1)%x][i/x]+1;
+        div += -sun_grid[i%x][(i/x+1)%x]+1;
+        div += -sun_grid[i%x][(i/x-1)%x]+1;
+        div = 1.0 / (div/2+1);
+        color->r *= div, color->g *= div, color->b *= div;
+    }
+    return (*color);
+}
+
+void draw_shape(sfConvexShape *shape, sfVector2f **vecs, sfColor color,
+    framebuffer_t *buf)
+{
+    if (color.a == 255){
+        sfConvexShape_setPoint(shape, 0, *vecs[0]);
+        sfConvexShape_setPoint(shape, 1, *vecs[1]);
+        sfConvexShape_setPoint(shape, 2, *vecs[2]);
+        sfConvexShape_setPoint(shape, 3, *vecs[3]);
+        sfConvexShape_setFillColor(shape, color);
+        sfRenderWindow_drawConvexShape(window_g, shape, 0);
+    } else {
+        my_draw_line(buf, vecs[0], vecs[1], color);
+        my_draw_line(buf, vecs[0], vecs[3], color);
+    }
+}
+
+void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, int mode)
+{
+    char **sun_grid = calc_sun_grid(mesh, x, y);
+    int size = 1;
     my_clear_buffer(buf);
     static sfConvexShape *shape = 0;
-    if (!shape){
-        shape = sfConvexShape_create();
-        sfConvexShape_setPointCount(shape, 4);
-    }
+    !shape ? shape = sfConvexShape_create(),
+    sfConvexShape_setPointCount(shape, 4) : 0;
 
-    int i_x_s = 1;
-    int i_y_s = 1;
-    int i_x_e = x - 1;
-    int i_y_e = y - 1;
-    int i_x_inc = 1;
-    int i_y_inc = 1;
-    char flag = 0;
-    int tmp;
-    int a = 0;
+    int i_v[] = {1, 1, x-1, y-1, 1, 1};
     points += 2;
+    int tmp;
 
-    //draw prioryti
-    static help = 0;
-    help++;
-    unsigned long int tab = 0x0;
-
-    float mid = cos(PI/4);
-
-    //points[-1][2] = pow(pow(points[-1][1], 2) + pow(points[-1][0], 2), 0.5);
-    //points[-2][2] = pow(pow(points[-2][1], 2) + pow(points[-2][0], 2), 0.5);
-
-    if (points[-1][2] > -mid && points[-1][2] < 0 && points[-2][2] < -mid)
-        printf("1\n"), flag = 0x0;
-    else if (points[-1][2] < mid && points[-1][2] > 0 && points[-2][2] < -mid)
-        printf("2\n"), flag = 0x1;
-    else if (points[-1][2] > mid && points[-2][2] > -mid && points[-2][2] < 0)
-        printf("3\n"), flag = 0x6;
-    else if (points[-1][2] > mid && points[-2][2] < mid && points[-2][2] > 0)
-        printf("4\n"), flag = 0x7;
-    else if (points[-1][2] < mid && points[-1][2] > 0 && points[-2][2] > mid)
-        printf("5\n"), flag = 0x3;
-    else if (points[-1][2] < 0 && points[-1][2] > -mid && points[-2][2] > mid)
-        printf("6\n"), flag = 0x2;
-    else if (points[-1][2] < -mid && points[-2][2] > 0 && points[-2][2] < mid)
-        printf("7\n"), flag = 0x5;
-    else if (points[-1][2] < -mid && points[-2][2] < 0 && points[-2][2] > -mid)
-        printf("8\n"), flag = 0x4;
-    printf("%i\n", flag);
-
-    if (flag & 0x1){
-        tmp = i_y_e;
-        i_y_e = i_y_s;
-        i_y_s = tmp;
-        i_y_inc = -1;
-    }
-
-    if (flag & 0x2){
-        tmp = i_x_e;
-        i_x_e = i_x_s;
-        i_x_s = tmp;
-        i_x_inc = -1;
-    }
-
-    printf("%f %f\n", (points[-2][2]), (points[-1][2]));
+    char flag = calc_flag(points);
+    flag & 0x1 ? tmp = i_v[3], i_v[3] = i_v[1], i_v[1] = tmp, i_v[5] = -1 : 0;
+    flag & 0x2 ? tmp = i_v[2], i_v[2] = i_v[0], i_v[0] = tmp, i_v[4] = -1 : 0;
 
     for (int i = -2; i < x*y; i++){
         points[i][2] = -points[i][2];
         points[i][0] = points[i][0]*size/points[i][2]*32*8 + SCREEN_X/2;
         points[i][1] = points[i][1]*size/points[i][2]*32*8 + SCREEN_Y/2;
     }
+    sfVector2f **vecs = malloc(sizeof(sfVector2u *) * 4);
+    for (int i = 0; i < 4; i++) vecs[i] = malloc(sizeof(sfVector2f));
 
-    /*{//db
-        sfVector2u vecf[] = {points[-2][0], points[-2][1]};
-        my_draw_circle(buf, *vecf, 10, &sfRed);
-        vecf->x = points[-1][0];
-        vecf->y = points[-1][1];
-        my_draw_circle(buf, *vecf, 10, &sfBlue);
+    for (int i_x = i_v[0]; i_x != i_v[2]; i_x += i_v[4]){
+        for (int i_y = i_v[1]; i_y != i_v[3]; i_y += i_v[5]){
+            int i = (flag & 0x4) ? i_y+i_x*x : i_y*y+i_x;
 
-        vecf->x = points[0][0];
-        vecf->y = points[0][1];
-        my_draw_circle(buf, *vecf, 10, &sfGreen);
-        vecf->x = points[x-1][0];
-        vecf->y = points[x-1][1];
-        my_draw_circle(buf, *vecf, 10, &sfGreen);
-        vecf->x = points[y*x-1][0];
-        vecf->y = points[y*x-1][1];
-        my_draw_circle(buf, *vecf, 10, &sfGreen);
-        vecf->x = points[y*x-y+1][0];
-        vecf->y = points[y*x-y+1][1];
-        my_draw_circle(buf, *vecf, 10, &sfGreen);
-    }//db*/
-
-    float max_height = 0;
-    float min_height = 0;
-    for (int i = 0; mesh[i]; i++){
-        for (int ii = 0; mesh[i][ii]; ii++){
-        mesh[i][ii] > max_height ? max_height = mesh[i][ii] : 0;
-        mesh[i][ii] < min_height ? min_height = mesh[i][ii] : 0;
-        }
-    }
-
-    int tmp2 = 0;
-    for (int i_x = i_x_s; i_x != i_x_e; i_x += i_x_inc){
-        for (int i_y = i_y_s; i_y != i_y_e; i_y += i_y_inc){
-            int i;
-            if (flag & 0x4)
-                i = i_y+i_x*x;
-            else
-                i = i_y*y+i_x;
-            tmp2++;
-            //if (tmp2 > 128)
-            //    return;
-            if (i % y == 0 || points[i][2] < 0  || points[i][0] > SCREEN_X || points[i][0] < 0 || points[i][1] > SCREEN_Y || points[i][1] < 0)
-                continue;
-            vec1->x = points[i][0];
-            vec1->y = points[i][1];
-            if (vec1->x > SCREEN_X || vec1->x < 0 || vec1->y > SCREEN_Y || vec1->y < 0 || points[i][2] > 2000000)
-            continue;
-
-
-            vec2->x = points[i-y][0];
-            vec2->y = points[i-y][1];
-            if (vec2->x > SCREEN_X || vec2->x < 0 || vec2->y > SCREEN_Y || vec2->y < 0)
+            if (did_we_draw(vecs, points, i, x))
                 continue;
 
-            vec3->x = points[i-y-1][0];
-            vec3->y = points[i-y-1][1];
-            if (vec3->x > SCREEN_X || vec3->x < 0 || vec3->y > SCREEN_Y || vec3->y < 0)
-            continue;
-
-            vec4->x = points[i-1][0];
-            vec4->y = points[i-1][1];
-            if (vec4->x > SCREEN_X || vec4->x < 0 || vec4->y > SCREEN_Y || vec4->y < 0)
-            continue;
-
-
-            float height = (mesh[i%x][i/x] + mesh[i%x-1][i/x-1] +
-            mesh[i%x][i/x-1] + mesh[i%x-1][i/x])/4;
-            //float pente = fabsf(height - mesh[i%x][i/x]) + fabsf(height - mesh[i%x-1][i/x-1]) + fabsf(height - mesh[i%x][i/x-1]) + fabsf(height - mesh[i%x-1][i/x]);
-            //pente /= 4.0;
-            //printf("pente %f\n", pente);
-            int water = gauss(height, 100, 1, -20) * 500;
-            int grass = gauss(height, 7, 5 , -10) * 500;
-            float stone = gauss(height, 1, 10, 10)*500;
-            int snow = gauss(height, 10, 100, 17) * 500;
-
-            sfColor color[] = {min_i(snow+stone, 255), min_i(grass+snow+stone, 255), min_i(water+snow+stone, 255), 255};
-            if (sun_grid[i%x][i/x] == 0)
-                color->r /= 2, color->g /= 2, color->b /= 2;
-            if (mode == 1){
-                sfConvexShape_setPoint(shape, 0, *vec1);
-                sfConvexShape_setPoint(shape, 1, *vec2);
-                sfConvexShape_setPoint(shape, 2, *vec3);
-                sfConvexShape_setPoint(shape, 3, *vec4);
-                sfConvexShape_setFillColor(shape, *color);
-                sfRenderWindow_drawConvexShape(window_g, shape, 0);
-            } else if (mode == 2){
-                my_draw_line(buf, vec1, vec2, *color);
-                my_draw_line(buf, vec1, vec4, *color);
-            }
+            sfColor color = calc_color(mesh, i, x, sun_grid);
+            color.a = mode == 2 ? 254 : 255;
+            draw_shape(shape, vecs, color, buf);
         }
     }
-    free(vec1), free(vec2), free(vec3), free(vec4);
+    free(vecs[0]), free(vecs[1]), free(vecs[2]), free(vecs[3]);
 }
 
 void free_mesh(float **mesh, int x, int y)
@@ -460,14 +362,15 @@ typedef struct map
 //main
 int main(int ac, char **av)
 {
-    int a;
     srand(time(0));
-    int size_x = 256;
-    int size_y = 256;
+    int size_x = 128;
+    int size_y = 128;
+    //int sizes[2] = {size_x, size_y};
     float **mesh = create_mesh(size_x, size_y, 7);
-    for (int i = 0; i < 50000; i++)
-        drop_water(mesh, rand()%254+1, rand()%254+1, 0.5, 0);
-
+    for (int i = 0; i < size_x*size_y; i++){
+        int xy[] = {rand()%(size_x-2)+1, rand()%(size_y-2)+1, size_x, size_y};
+        drop_water(mesh, xy, 0.5, 0);
+    }
     float **points2;
     float **points;
     map_t *map = malloc(sizeof(map_t));
@@ -475,12 +378,11 @@ int main(int ac, char **av)
     map->chunk_x = lld_init();
     map->chunk_y = lld_init();
     float *mat_start = mat3_init();
-    //mat3_rz(mat_start, -45.0/180*PI);
-    //mat3_rx(mat_start, 70.0/180*PI);
-    //mat3_tz(mat_start, -100);
     mat3_ttx(mat_start, size_x/2);
     mat3_tty(mat_start, size_y/2);
     mat3_rx(mat_start, -PI/2);
+    mat3_ry(mat_start, -0.01);
+    mat3_ty(mat_start, 20);
 
     sfVector2i mouse_o;
     sfVector2i mouse;
@@ -495,14 +397,12 @@ int main(int ac, char **av)
             if (event.type == sfEvtClosed)
                 exit (0);
 
-        //my_clear_buffer(buf);
         points = mesh_to_points(mesh, size_x, size_y);
         points2 = rotate_points(points, mat_start);
         draw_mesh(buf, points2, size_x, size_y, mesh, mv+1);
         mv = 0;
         free_points(points2);
         free_points(points);
-        //printf("frame %i\n", frame_nb);
 
         if (sfKeyboard_isKeyPressed(sfKeyZ)){
             mat3_tz(mat_start, 1);
