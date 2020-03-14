@@ -21,7 +21,6 @@ COV 	=		--exclude tests/ -o coverage.html
 
 
 all:
-	clear
 	make -C ./lib/my build
 	gcc -o $(NAME) $(SRC) $(FLAGS)
 

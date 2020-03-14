@@ -16,14 +16,26 @@
 
 #define E 2.71828182846
 #define PI 3.14159265359
+#define SCREEN_X 800
+#define SCREEN_Y 800
+
 
 sfRenderWindow *window_g;
 
 typedef struct world
 {
-    float **grid;
-    unsigned int size_x;
-    unsigned int size_y;
+    int x;
+    int y;
+    sfRenderWindow *cam;
+    float *mat_start;
+    char **sun_grid;
+    char mv;
+    framebuffer_t *cam_buf;
+    sfRenderWindow *edi;
+    float **mesh;
+    framebuffer_t *edi_buf;
+    float edi_x;
+    float edi_y;
 } world_t;
 
 float **copy_points(float **points)
@@ -135,7 +147,7 @@ float **create_mesh(int x, int y, int d)
             mesh[i][ii] = 0;
             for (int d_nb = 0; d_nb < d; d_nb++)
                 mesh[i][ii] += perlin((float)i/(1.1*pow(2, d_nb)), (float)ii/(1.1*pow(2, d_nb)))*pow(2, d_nb);
-
+            mesh[i][ii] -= 5;
         }
         mesh[i][ii] = 0;
     }
@@ -214,16 +226,18 @@ char calc_flag(float **points)
     return (flag);
 }
 
-char **calc_sun_grid(float **mesh, int x, int y)
+char **calc_sun_grid(float **mesh, int x, int y, world_t *world)
 {
     static float sun = 0;
     sun += PI/600;
     float sun_angle = fabsf(tan(sun));
+    sun > PI*1.5 ? sun = -PI/2 : 0;
     sin(sun) < 0 ? sun_angle *= -1 : 0;
     static char **sun_grid = 0;
     if (sun_grid == 0){
         sun_grid = malloc(sizeof(char *) * y);
         for (int i = 0; i < y; i++) sun_grid[i] = malloc(sizeof(char) * x);
+        world->sun_grid = sun_grid;
     }
     for (int yy = 0; yy < y; yy++){
         float start = mesh[yy][sun < PI/2 ? 0 : x-1];
@@ -280,18 +294,18 @@ sfColor calc_color(float **mesh, int i, int x, char **sun_grid)
 }
 
 void draw_shape(sfConvexShape *shape, sfVector2f **vecs, sfColor color,
-    framebuffer_t *buf)
+    world_t *world)
 {
-    if (color.a == 255){
+    if (!world->mv){
         sfConvexShape_setPoint(shape, 0, *vecs[0]);
         sfConvexShape_setPoint(shape, 1, *vecs[1]);
         sfConvexShape_setPoint(shape, 2, *vecs[2]);
         sfConvexShape_setPoint(shape, 3, *vecs[3]);
         sfConvexShape_setFillColor(shape, color);
-        sfRenderWindow_drawConvexShape(window_g, shape, 0);
+        sfRenderWindow_drawConvexShape(world->cam, shape, 0);
     } else {
-        my_draw_line(buf, vecs[0], vecs[1], color);
-        my_draw_line(buf, vecs[0], vecs[3], color);
+        my_draw_line(world->cam_buf, vecs[0], vecs[1], color);
+        my_draw_line(world->cam_buf, vecs[0], vecs[3], color);
     }
 }
 
@@ -307,28 +321,26 @@ void aply_flags(char flag, float **points, int *i_v, int xy)
     }
 }
 
-void draw_mesh(framebuffer_t *buf, float **points, int x, int y, float **mesh, int mode)
+void draw_mesh(world_t *world, float **points)
 {
-    char **sun_grid = calc_sun_grid(mesh, x, y);
-    my_clear_buffer(buf);
+    char **sun_grid = calc_sun_grid(world->mesh, world->x, world->y, world);
+    my_clear_buffer(world->cam_buf);
     static sfConvexShape *shape = 0; !shape ? shape = sfConvexShape_create(),
     sfConvexShape_setPointCount(shape, 4) : 0;
-    int i_v[] = {1, 1, x-1, y-1, 1, 1};
-    points += 2;
+    int i_v[] = {1, 1, world->x-1, world->y-1, 1, 1};
     char flag = calc_flag(points);
-    aply_flags(flag, points, i_v, x*y);
+    aply_flags(flag, points, i_v, world->x*world->y);
     sfVector2f **vecs = malloc(sizeof(sfVector2u *) * 4);
     for (int i = 0; i < 4; i++) vecs[i] = malloc(sizeof(sfVector2f));
     for (int i_x = i_v[0]; i_x != i_v[2]; i_x += i_v[4]){
         for (int i_y = i_v[1]; i_y != i_v[3]; i_y += i_v[5]){
-            int i = (flag & 0x4) ? i_y+i_x*x : i_y*y+i_x;
-            if (did_we_draw(vecs, points, i, x)) continue;
-            sfColor color = calc_color(mesh, i, x, sun_grid);
-            color.a = mode == 2 ? 254 : 255;
-            draw_shape(shape, vecs, color, buf);
+            int i = (flag & 0x4) ? i_y+i_x*world->x : i_y*world->y+i_x;
+            if (did_we_draw(vecs, points, i, world->x)) continue;
+            sfColor color = calc_color(world->mesh, i, world->x, sun_grid);
+            draw_shape(shape, vecs, color, world);
         }
     }
-    free(vecs[0]), free(vecs[1]), free(vecs[2]), free(vecs[3]);
+    free(vecs[0]), free(vecs[1]), free(vecs[2]), free(vecs[3]), free(vecs);
 }
 
 void free_mesh(float **mesh, int x, int y)
@@ -339,128 +351,198 @@ void free_mesh(float **mesh, int x, int y)
     free(mesh);
 }
 
-typedef struct chunk
+int take_movement_input(float *mat_start, world_t *world)
 {
-    float **mesh;
-    int x;
-    int y;
-} chunk_t;
+    int mv = 0;
+    static sfVector2i mouse_o = {0, 0};
+    sfVector2i mouse = sfMouse_getPosition(world->cam);
+    if (mouse.x < 0 || mouse.y < 0 || mouse.x > SCREEN_X || mouse.y > SCREEN_Y)
+        return (0);
+    sfKeyboard_isKeyPressed(sfKeyZ) ? mat3_tz(mat_start, 1), mv = 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyS) ? mat3_tz(mat_start, -1), mv = 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyQ) ? mat3_tx(mat_start, 1), mv = 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyD) ? mat3_tx(mat_start, -1), mv = 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyE) ? mat3_ty(mat_start, 1), mv = 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyA) ? mat3_ty(mat_start, -1), mv = 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyW) ? mat3_rz(mat_start, PI/180), mv = 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyX) ? mat3_rz(mat_start, -PI/180), mv = 1 : 0;
+    if (sfMouse_isButtonPressed(sfMouseLeft)){
+        float vx = mouse.x - mouse_o.x;
+        float vy = mouse.y - mouse_o.y;
+        mat3_rx(mat_start, vy/180);
+        mat3_ry(mat_start, -vx/180);
+        mv = 1;
+    }
+    mouse_o = mouse;
+    return (mv);
+}
 
-typedef struct map
+void init_map(world_t *world)
 {
-    lld_t *chunk_x;
-    lld_t *chunk_y;
-    int chunk_size; //in point
-    int draw_d; //in chunk
-} map_t;
-
-//main
-int main(int ac, char **av)
-{
-    srand(time(0));
-    int size_x = 128;
-    int size_y = 128;
-    //int sizes[2] = {size_x, size_y};
-    float **mesh = create_mesh(size_x, size_y, 7);
+    int size_x = world->x;
+    int size_y = world->y;
+    float **mesh = create_mesh(world->x, world->y, 7);
     for (int i = 0; i < size_x*size_y; i++){
         int xy[] = {rand()%(size_x-2)+1, rand()%(size_y-2)+1, size_x, size_y};
         drop_water(mesh, xy, 0.5, 0);
     }
-    float **points2;
-    float **points;
-    map_t *map = malloc(sizeof(map_t));
-    map->draw_d = 100;
-    map->chunk_x = lld_init();
-    map->chunk_y = lld_init();
+    world->mesh = mesh;
+}
+
+void init_edit(world_t *world)
+{
+    sfVideoMode mode = {SCREEN_X, SCREEN_Y, 32};
+    world->edi = sfRenderWindow_create(mode, "editor", sfClose, 0);
+    world->edi_buf = framebuffer_create(SCREEN_X, SCREEN_Y);
+}
+
+void init_cam(world_t *world)
+{
     float *mat_start = mat3_init();
-    mat3_ttx(mat_start, size_x/2);
-    mat3_tty(mat_start, size_y/2);
+    mat3_ttx(mat_start, world->x/2);
+    mat3_tty(mat_start, world->y/2);
     mat3_rx(mat_start, -PI/2);
     mat3_ry(mat_start, -0.01);
-    mat3_ty(mat_start, 20);
+    mat3_rx(mat_start, -PI/4);
+    mat3_tz(mat_start, -100);
+    world->mat_start = mat_start;
+    sfVideoMode mode = {SCREEN_X, SCREEN_Y, 32};
+    world->cam = sfRenderWindow_create(mode, "camera", sfClose, 0);
+    world->cam_buf = framebuffer_create(SCREEN_X, SCREEN_Y);
+}
 
-    sfVector2i mouse_o;
-    sfVector2i mouse;
-    mouse.x = 0;
-    mouse.y = 0;
+void draw_window(sfRenderWindow *win, framebuffer_t *fb)
+{
+    static sfSprite *sprite = 0; !sprite ? sprite = sfSprite_create() : 0;
+    static sfTexture *texture = 0;
+    !texture ? texture = sfTexture_create(SCREEN_X, SCREEN_Y) : 0;
 
-    sfEvent event;
-    int mv = 0;
-    for (int frame_nb = 0; frame_nb < 1000000; frame_nb++){
-        framebuffer_t *buf = draw();
-        while (sfRenderWindow_pollEvent(window_g, &event))
-            if (event.type == sfEvtClosed)
-                exit (0);
-
-        points = mesh_to_points(mesh, size_x, size_y);
-        points2 = rotate_points(points, mat_start);
-        draw_mesh(buf, points2, size_x, size_y, mesh, mv+1);
-        mv = 0;
-        free_points(points2);
-        free_points(points);
-
-        if (sfKeyboard_isKeyPressed(sfKeyZ)){
-            mat3_tz(mat_start, 1);
-            mv = 1;
-        }
-        if (sfKeyboard_isKeyPressed(sfKeyS)){
-            mat3_tz(mat_start, -1);
-            mv = 1;
-        }
-        if (sfKeyboard_isKeyPressed(sfKeyQ)){
-            mat3_tx(mat_start, 1);
-            mv = 1;
-        }
-        if (sfKeyboard_isKeyPressed(sfKeyD)){
-            mat3_tx(mat_start, -1);
-            mv = 1;
-        }
-        if (sfKeyboard_isKeyPressed(sfKeyE)){
-            mat3_ty(mat_start, 1);
-            mv = 1;
-        }
-        if (sfKeyboard_isKeyPressed(sfKeyA)){
-            mat3_ty(mat_start, -1);
-            mv = 1;
-        }
-        if (sfKeyboard_isKeyPressed(sfKeyW)){
-            mat3_rz(mat_start, 1.0/180*PI);
-            mv = 1;
-        }
-        if (sfKeyboard_isKeyPressed(sfKeyX)){
-            mat3_rz(mat_start, -1.0/180*PI);
-            mv = 1;
-        }
-        mouse = sfMouse_getPosition(0);
-        if (sfMouse_isButtonPressed(sfMouseLeft)){
-            float vx = mouse.x - mouse_o.x;
-            float vy = mouse.y - mouse_o.y;
-            mat3_rx(mat_start, vy/180);
-            mat3_ry(mat_start, -vx/180);
-            mv = 1;
-        }
-        mouse_o = mouse;
-
-        float *mat_inv = mat3_inv(mat_start);
-        float *mat_pos = mat3_multiply(mat_inv, mat_start);
-        free(mat_inv);
-        //float *mat_r = mat3_copy(mat_start);
-        //print_mat(mat_pos);
-
-        /*if ((int)mat_pos[3] >= size_x-1)
-            mat3_ttx(mat_start, -254);
-        if ((int)mat_pos[3] <= 1)
-            mat3_ttx(mat_start, 254);
-        if ((int)mat_pos[7] >= size_y-1)
-            mat3_tty(mat_start, -254);
-        if ((int)mat_pos[7] <= 1)
-            mat3_tty(mat_start, 254);
-
-        float mesh_z = mesh[(int)mat_pos[3]][(int)mat_pos[7]] - mat_pos[11]+10;
-        mat3_ttz(mat_start, mesh_z);*/
+    static char first = 0;
+    for (; !first; first = 1){
+        sfRenderWindow_setFramerateLimit(win, 60);
+        sfSprite_setTexture(sprite, texture, sfTrue);
     }
-    free_mesh(mesh, size_x, size_y);
-    free(mat_start);
-   // free_points(points2);
+    sfTexture_updateFromPixels(texture, fb->pixels, SCREEN_X, SCREEN_Y, 0, 0);
+    sfRenderWindow_drawSprite(win, sprite, 0);
+    sfRenderWindow_display(win);
+    sfRenderWindow_clear(win, sfBlack);
+}
+
+int main_cam(world_t *world)
+{
+    int size_x = world->x;
+    int size_y = world->y;
+    for (int i = 0; i < size_x*size_y/100; i++){
+        int xy[] = {rand()%(size_x-2)+1, rand()%(size_y-2)+1, size_x, size_y};
+        if (world->mesh[xy[0]][xy[1]] < -20)
+            drop_water(world->mesh, xy, 0.5, 0);
+    }
+    world->mv = take_movement_input(world->mat_start, world);
+    float **points = mesh_to_points(world->mesh, size_x, size_y);
+    float **points2 = rotate_points(points, world->mat_start);
+    draw_mesh(world, points2+2);
+    free_points(points2);
+    free_points(points);
+    draw_window(world->cam, world->cam_buf);
+
+}
+
+void draw_player(world_t *world)
+{
+    float *mat_inv = mat3_inv(world->mat_start);
+    float *mat_pos = mat3_multiply(mat_inv, world->mat_start);
+    free(mat_inv);
+    sfVector2u vect[] = {mat_pos[3] * SCREEN_X / world->x + world->edi_x,
+    mat_pos[7]* SCREEN_Y / world->y + world->edi_y};
+    my_draw_circle(world->edi_buf, *vect, 10, &sfRed);
+    free(mat_pos);
+}
+
+void draw_map(world_t *world)
+{
+    sfVector2u vect;
+    sfVector2u vect2;
+    int cs = SCREEN_X/(world->x)*1.5;
+    for (int y = 1; y < world->y; y++){
+        for (int x = 1; x < world->x; x++){
+            sfColor color = calc_color(world->mesh, x+y*world->x, world->x, world->sun_grid);
+            vect.x = ((world->x-x)-1)*cs + world->edi_x;
+            vect.y = (y-1)*cs + world->edi_y;
+            my_draw_square(world->edi_buf, vect, cs, color);
+        }
+    }
+    vect.x = cs-1, vect.y = cs-1;
+    vect2.x = 0, vect2.y = SCREEN_Y;
+    for (; vect.x < SCREEN_X; vect.x += cs, vect2.x += cs)
+        my_draw_line(world->edi_buf, &vect, &vect2, sfBlack);
+
+    vect.x = cs-1, vect.y = cs-1;
+    vect2.x = SCREEN_X, vect2.y = 0;
+    for (; vect.y < SCREEN_X; vect.y += cs, vect2.y += cs)
+        my_draw_line(world->edi_buf, &vect, &vect2, sfBlack);
+
+}
+
+void take_input_edit(world_t *world)
+{
+    sfVector2i mouse = sfMouse_getPosition(world->edi);
+    if (mouse.x < 0 || mouse.y < 0 || mouse.x > SCREEN_X || mouse.y > SCREEN_Y)
+        return (0);
+    sfKeyboard_isKeyPressed(sfKeyZ) ? world->edi_y += 5 : 0;
+    sfKeyboard_isKeyPressed(sfKeyS) ? world->edi_y -= 5 : 0;
+    sfKeyboard_isKeyPressed(sfKeyQ) ? world->edi_x += 5 : 0;
+    sfKeyboard_isKeyPressed(sfKeyD) ? world->edi_x -= 5 : 0;
+}
+
+
+int main_edit(world_t *world)
+{
+    take_input_edit(world);
+    draw_map(world);
+    draw_player(world);
+    draw_window(world->edi, world->edi_buf);
+    my_clear_buffer(world->edi_buf);
+}
+
+void free_world(world_t *world)
+{
+
+}
+
+world_t *create_world(int x, int y)
+{
+    world_t *world = malloc(sizeof(world_t));
+    world->x = x;
+    world->y = y;
+    init_map(world);
+    init_cam(world);
+    init_edit(world);
+    return (world);
+}
+
+int main(int ac, char **av)
+{
+    srand(time(0));
+    world_t *world = create_world(128, 128);
+    sfEvent event;
+
+    for (int frame_nb = 0; frame_nb < 200000000; frame_nb++){
+        main_cam(world);
+        main_edit(world);
+        /*while (sfRenderWindow_pollEvent(window_g, &event))
+            if (event.type == sfEvtClosed)
+                return (0);*/
+    }
+
+    for (int frame_nb = 0; frame_nb < 50000000; frame_nb++){
+
+
+
+        //float *mat_inv = mat3_inv(mat_start);
+        //float *mat_pos = mat3_multiply(mat_inv, mat_start);
+        //free(mat_inv);
+    }
+    //free_mesh(mesh, size_x, size_y);
+    //free(mat_start);
     return (0);
 }
