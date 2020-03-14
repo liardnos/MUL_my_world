@@ -34,8 +34,9 @@ typedef struct world
     sfRenderWindow *edi;
     float **mesh;
     framebuffer_t *edi_buf;
-    float edi_x;
-    float edi_y;
+    int edi_x;
+    int edi_y;
+    int brush;
 } world_t;
 
 float **copy_points(float **points)
@@ -355,7 +356,7 @@ int take_movement_input(float *mat_start, world_t *world)
 {
     int mv = 0;
     static sfVector2i mouse_o = {0, 0};
-    sfVector2i mouse = sfMouse_getPosition(world->cam);
+    sfVector2i mouse = sfMouse_getPositionRenderWindow(world->cam);
     if (mouse.x < 0 || mouse.y < 0 || mouse.x > SCREEN_X || mouse.y > SCREEN_Y)
         return (0);
     sfKeyboard_isKeyPressed(sfKeyZ) ? mat3_tz(mat_start, 1), mv = 1 : 0;
@@ -394,6 +395,8 @@ void init_edit(world_t *world)
     sfVideoMode mode = {SCREEN_X, SCREEN_Y, 32};
     world->edi = sfRenderWindow_create(mode, "editor", sfClose, 0);
     world->edi_buf = framebuffer_create(SCREEN_X, SCREEN_Y);
+    world->edi_x = 0;
+    world->edi_y = 0;
 }
 
 void init_cam(world_t *world)
@@ -401,9 +404,8 @@ void init_cam(world_t *world)
     float *mat_start = mat3_init();
     mat3_ttx(mat_start, world->x/2);
     mat3_tty(mat_start, world->y/2);
-    mat3_rx(mat_start, -PI/2);
     mat3_ry(mat_start, -0.01);
-    mat3_rx(mat_start, -PI/4);
+    mat3_rx(mat_start, -PI/1.5);
     mat3_tz(mat_start, -100);
     world->mat_start = mat_start;
     sfVideoMode mode = {SCREEN_X, SCREEN_Y, 32};
@@ -444,16 +446,20 @@ int main_cam(world_t *world)
     free_points(points2);
     free_points(points);
     draw_window(world->cam, world->cam_buf);
-
+    return (0);
 }
 
 void draw_player(world_t *world)
 {
     float *mat_inv = mat3_inv(world->mat_start);
     float *mat_pos = mat3_multiply(mat_inv, world->mat_start);
+    printf("mat %f %f\n", mat_pos[3], mat_pos[7]);
     free(mat_inv);
-    sfVector2u vect[] = {mat_pos[3] * SCREEN_X / world->x + world->edi_x,
-    mat_pos[7]* SCREEN_Y / world->y + world->edi_y};
+    int cs = SCREEN_X/(world->x)*1.5;
+    sfVector2u vect[] = {
+        (world->x-mat_pos[3]) * cs + world->edi_x,
+        mat_pos[7] * cs + world->edi_y
+    };
     my_draw_circle(world->edi_buf, *vect, 10, &sfRed);
     free(mat_pos);
 }
@@ -461,7 +467,8 @@ void draw_player(world_t *world)
 void draw_map(world_t *world)
 {
     sfVector2u vect;
-    sfVector2u vect2;
+    sfVector2f vect1;
+    sfVector2f vect2;
     int cs = SCREEN_X/(world->x)*1.5;
     for (int y = 1; y < world->y; y++){
         for (int x = 1; x < world->x; x++){
@@ -471,27 +478,37 @@ void draw_map(world_t *world)
             my_draw_square(world->edi_buf, vect, cs, color);
         }
     }
-    vect.x = cs-1, vect.y = cs-1;
-    vect2.x = 0, vect2.y = SCREEN_Y;
-    for (; vect.x < SCREEN_X; vect.x += cs, vect2.x += cs)
-        my_draw_line(world->edi_buf, &vect, &vect2, sfBlack);
-
-    vect.x = cs-1, vect.y = cs-1;
-    vect2.x = SCREEN_X, vect2.y = 0;
-    for (; vect.y < SCREEN_X; vect.y += cs, vect2.y += cs)
-        my_draw_line(world->edi_buf, &vect, &vect2, sfBlack);
-
+    vect1.x = world->edi_x%cs, vect1.y = world->edi_y%cs;
+    vect2.x = world->edi_x%cs, vect2.y = SCREEN_Y;
+    for (; vect1.x < SCREEN_X; vect1.x += cs, vect2.x += cs)
+        my_draw_line(world->edi_buf, &vect1, &vect2, sfBlack);
+    vect1.x = world->edi_x%cs, vect1.y = world->edi_y%cs;
+    vect2.x = SCREEN_X, vect2.y = world->edi_y%cs;
+    for (; vect1.y < SCREEN_X; vect1.y += cs, vect2.y += cs)
+        my_draw_line(world->edi_buf, &vect1, &vect2, sfBlack);
 }
 
 void take_input_edit(world_t *world)
 {
-    sfVector2i mouse = sfMouse_getPosition(world->edi);
+    sfVector2i mouse = sfMouse_getPositionRenderWindow(world->edi);
     if (mouse.x < 0 || mouse.y < 0 || mouse.x > SCREEN_X || mouse.y > SCREEN_Y)
-        return (0);
+        return;
     sfKeyboard_isKeyPressed(sfKeyZ) ? world->edi_y += 5 : 0;
     sfKeyboard_isKeyPressed(sfKeyS) ? world->edi_y -= 5 : 0;
     sfKeyboard_isKeyPressed(sfKeyQ) ? world->edi_x += 5 : 0;
     sfKeyboard_isKeyPressed(sfKeyD) ? world->edi_x -= 5 : 0;
+    int cs = SCREEN_X/(world->x)*1.5;
+    if (sfMouse_isButtonPressed(sfMouseLeft)){
+        int xy[] = {
+            world->x - (mouse.x - world->edi_x)/cs,
+            (mouse.y - world->edi_y)/cs
+         };
+        printf("%i %i\n", xy[0], xy[1]);
+        for (int x = -world->brush; x < world->brush; x++)
+        for (int y = -world->brush; y < world->brush; y++)
+        for (int i = 0; i < 100; i++)
+            drop_water(world->mesh, xy, 1, 0);
+    }
 }
 
 
@@ -502,6 +519,8 @@ int main_edit(world_t *world)
     draw_player(world);
     draw_window(world->edi, world->edi_buf);
     my_clear_buffer(world->edi_buf);
+    world->brush = 2;
+    return (0);
 }
 
 void free_world(world_t *world)
@@ -524,8 +543,6 @@ int main(int ac, char **av)
 {
     srand(time(0));
     world_t *world = create_world(128, 128);
-    sfEvent event;
-
     for (int frame_nb = 0; frame_nb < 200000000; frame_nb++){
         main_cam(world);
         main_edit(world);
@@ -535,9 +552,6 @@ int main(int ac, char **av)
     }
 
     for (int frame_nb = 0; frame_nb < 50000000; frame_nb++){
-
-
-
         //float *mat_inv = mat3_inv(mat_start);
         //float *mat_pos = mat3_multiply(mat_inv, mat_start);
         //free(mat_inv);
