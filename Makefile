@@ -5,7 +5,12 @@
 ## makefile for bistro-matic
 ##
 
-SRC		=		src/*.c
+SRC		=		src/*.c			\
+				src/buttons/*.c	\
+				src/edi/*.c		\
+				src/cam/*.c		\
+				src/mesh/*.c		\
+
 
 SRCT 	=		./tests/
 
@@ -17,7 +22,6 @@ FLAGS	=		-L./lib/my -lmy -I./include/ -l csfml-graphics -l csfml-window -l m -Wa
 TFLAG 	= 		-lcriterion --coverage -fprofile-arcs
 
 COV 	=		--exclude tests/ -o coverage.html
-
 
 
 all:
