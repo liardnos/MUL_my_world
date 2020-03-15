@@ -9,7 +9,8 @@
 
 void help(void)
 {
-    my_printf("IMPORTANT\n    this world editor work with 2 window\n\n");
+    my_printf("IMPORTANT\n    this world editor work with 2 window\n");
+    my_printf("    build with \"make allO4\" rule is recommend\n\n");
     my_printf("USAGE\n    ./my_world [size]\n\n");
     my_printf("    size    size of the world (default = 128)\n\n");
 
