@@ -16,7 +16,7 @@ SRCT 	=		./tests/
 
 NAME	=		my_world
 
-FLAGS	=		-L./lib/my -lmy -I./include/ -l csfml-graphics -l csfml-window -l m -Wall
+FLAGS	=		-L./lib/my -lmy -I./include/ -l csfml-graphics -l csfml-window -l m
 #-fno-diagnostics-show-labels -fno-diagnostics-show-labels fdiagnostics-generate-patch -Wall -Wextra
 #fsyntaxe-only
 TFLAG 	= 		-lcriterion --coverage -fprofile-arcs
