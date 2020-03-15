@@ -50,8 +50,14 @@ world_t *create_world(int x, int y)
 
 int main(int ac, char **av)
 {
-    srand(time(0));
-    world_t *world = create_world(128, 128);
+    int size = 128;
+    if (ac == 2 && !my_strcmp(av[1], "-h")){
+        help();
+        return (0);
+    } else if (ac == 2 && my_getnbr(av[1]) > 0)
+        size = my_getnbr(av[1]);
+    srand(&size);
+    world_t *world = create_world(size, size);
     sfEvent event;
     for (int frame_nb = 0; frame_nb < 200000000; frame_nb++){
         main_cam(world);

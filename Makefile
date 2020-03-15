@@ -14,7 +14,7 @@ SRC		=		src/*.c			\
 
 SRCT 	=		./tests/
 
-NAME	=		a.out
+NAME	=		my_world
 
 FLAGS	=		-L./lib/my -lmy -I./include/ -l csfml-graphics -l csfml-window -l m -Wall
 #-fno-diagnostics-show-labels -fno-diagnostics-show-labels fdiagnostics-generate-patch -Wall -Wextra
