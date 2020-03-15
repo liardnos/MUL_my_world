@@ -121,6 +121,33 @@ void button5(world_t *world, int nb)
     buts[nb].on = 0;
 }
 
+void button6(world_t *world, int nb)
+{
+    button_t *buts = world->edi_buttons;
+    buts[nb].pos_x = SCREEN_X - 150, buts[nb].pos_y = 100 + nb*60;
+    buts[nb].size_x = 150, buts[nb].size_y = 50;
+    sfColor c1[] = {255, 255, 255, 50};
+    sfColor c2[] = {50, 50, 50, 0};
+    sfColor c3[] = {200, 200, 200, 255};
+    buts[nb].color1 = *c1, buts[nb].color2 = *c2, buts[nb].color3 = *c3;
+    buts[nb].txt = "Time +1h";
+    buts[nb].on = 0;
+}
+
+void button7(world_t *world, int nb)
+{
+    button_t *buts = world->edi_buttons;
+    buts[nb].pos_x = SCREEN_X - 150, buts[nb].pos_y = 100 + nb*60;
+    buts[nb].size_x = 150, buts[nb].size_y = 50;
+    sfColor c1[] = {255, 255, 255, 50};
+    sfColor c2[] = {50, 50, 50, 0};
+    sfColor c3[] = {200, 200, 200, 255};
+    buts[nb].color1 = *c1, buts[nb].color2 = *c2, buts[nb].color3 = *c3;
+    buts[nb].txt = "Time -1h";
+    buts[nb].on = 0;
+}
+
+
 void init_buttons(world_t *world)
 {
     button0(world, 0);
@@ -129,12 +156,14 @@ void init_buttons(world_t *world)
     button3(world, 3);
     button4(world, 4);
     button5(world, 5);
+    button6(world, 6);
+    button7(world, 7);
 }
 
 void init_edit(world_t *world)
 {
     sfVideoMode mode = {SCREEN_X, SCREEN_Y, 32};
-    world->buton_nb = 6;
+    world->buton_nb = 8;
     world->edi = sfRenderWindow_create(mode, "editor", sfClose, 0);
     world->edi_buf = framebuffer_create(SCREEN_X, SCREEN_Y);
     world->edi_x = 0;
@@ -232,10 +261,10 @@ void take_input_edit(world_t *world)
     sfVector2i mouse = sfMouse_getPositionRenderWindow(world->edi);
     if (mouse.x < 0 || mouse.y < 0 || mouse.x > SCREEN_X || mouse.y > SCREEN_Y)
         return;
-    sfKeyboard_isKeyPressed(sfKeyZ) ? world->edi_y += 5, world->mv |= 1 : 0;
-    sfKeyboard_isKeyPressed(sfKeyS) ? world->edi_y -= 5, world->mv |= 1 : 0;
-    sfKeyboard_isKeyPressed(sfKeyQ) ? world->edi_x += 5, world->mv |= 1 : 0;
-    sfKeyboard_isKeyPressed(sfKeyD) ? world->edi_x -= 5, world->mv |= 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyZ) ? world->edi_y += 10, world->mv |= 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyS) ? world->edi_y -= 10, world->mv |= 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyQ) ? world->edi_x += 10, world->mv |= 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyD) ? world->edi_x -= 10, world->mv |= 1 : 0;
     int cs = SCREEN_X/(world->x)*1.5;
     if (sfMouse_isButtonPressed(sfMouseLeft)){
         int xy[] = {world->x - (mouse.x - world->edi_x)/cs,
@@ -258,6 +287,8 @@ int interact_butons(world_t *world)
     button(world, 3) == 0x3 ? world->brush_type = 2 : 0;
     button(world, 4) == 0x3 ? world->brush_type = 3 : 0;
     button(world, 5) == 0x3 ? world->mv ^= 2 : 0;
+    button(world, 6) == 0x3 ? world->sun += PI/12 : 0;
+    button(world, 7) == 0x3 ? world->sun -= PI/12 : 0;
     for (int i = 0; i < world->buton_nb; i++)
         tot += button(world, i);
     return (tot);

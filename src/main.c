@@ -214,11 +214,10 @@ char calc_flag(float **points)
 
 char **calc_sun_grid(float **mesh, int x, int y, world_t *world)
 {
-    static float sun = 0;
-    sun += PI/6000;
-    float sun_angle = fabsf(tan(sun));
-    sun > PI*1.5 ? sun = -PI/2 : 0;
-    sin(sun) < 0 ? sun_angle *= -1 : 0;
+    world->sun += PI/6000;
+    float sun_angle = fabsf(tan(world->sun));
+    world->sun > PI*1.5 ? world->sun = -PI/2 : 0;
+    sin(world->sun) < 0 ? sun_angle *= -1 : 0;
     static char **sun_grid = 0;
     if (sun_grid == 0){
         sun_grid = malloc(sizeof(char *) * y);
@@ -226,8 +225,8 @@ char **calc_sun_grid(float **mesh, int x, int y, world_t *world)
         world->sun_grid = sun_grid;
     }
     for (int yy = 0; yy < y; yy++){
-        float start = mesh[yy][sun < PI/2 ? 0 : x-1];
-        for (int xx = sun < PI/2.0 ? 0 : x-1; xx < x && 0 <= xx; xx += sun < PI/2.0 ? 1 : -1){
+        float start = mesh[yy][world->sun < PI/2 ? 0 : x-1];
+        for (int xx = world->sun < PI/2.0 ? 0 : x-1; xx < x && 0 <= xx; xx += world->sun < PI/2.0 ? 1 : -1){
             start -= sun_angle;
             sun_grid[yy][xx] = ((mesh[yy][xx]) >= start) ?
             start = (mesh[yy][xx]), 1 : 0;
@@ -373,6 +372,7 @@ void init_map(world_t *world)
         drop_water(mesh, xy, 0.5, 0);
     }
     world->mesh = mesh;
+    world->sun = 0;
 }
 
 void init_cam(world_t *world)
@@ -425,11 +425,6 @@ int main_cam(world_t *world)
     draw_window(world->cam, world->cam_buf);
     world->mv &= 2;
     return (0);
-}
-
-void free_world(world_t *world)
-{
-
 }
 
 world_t *create_world(int x, int y)
