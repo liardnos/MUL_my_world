@@ -37,6 +37,7 @@ typedef struct world
     int edi_x;
     int edi_y;
     int brush;
+    int brush_type;
 } world_t;
 
 float **copy_points(float **points)
@@ -439,13 +440,14 @@ int main_cam(world_t *world)
         if (world->mesh[xy[0]][xy[1]] < -20)
             drop_water(world->mesh, xy, 0.5, 0);
     }
-    world->mv = take_movement_input(world->mat_start, world);
+    world->mv = world->mv ? 1 : take_movement_input(world->mat_start, world);
     float **points = mesh_to_points(world->mesh, size_x, size_y);
     float **points2 = rotate_points(points, world->mat_start);
     draw_mesh(world, points2+2);
     free_points(points2);
     free_points(points);
     draw_window(world->cam, world->cam_buf);
+    world->mv = 0;
     return (0);
 }
 
@@ -488,22 +490,40 @@ void draw_map(world_t *world)
         my_draw_line(world->edi_buf, &vect1, &vect2, sfBlack);
 }
 
+void draw_brush(world_t *world)
+{
+    sfVector2i mouse = sfMouse_getPositionRenderWindow(world->edi);
+    if (mouse.x < 0 || mouse.y < 0 || mouse.x > SCREEN_X || mouse.y > SCREEN_Y)
+        return;
+    int cs = SCREEN_X/(world->x)*1.5;
+    int x = (mouse.x)/cs;
+    int y = (mouse.y)/cs;
+    int brush = world->brush;
+    int x_p = world->edi_x%cs;
+    int y_p = world->edi_y%cs;
+    sfVector2f vect1[] = {(x - brush)*cs+x_p, (y - brush)*cs+y_p};
+    sfVector2f vect2[] = {(x + brush)*cs+x_p, (y - brush)*cs+y_p};
+    sfVector2f vect3[] = {(x - brush)*cs+x_p, (y + brush)*cs+y_p};
+    sfVector2f vect4[] = {(x + brush)*cs+x_p, (y + brush)*cs+y_p};
+    my_draw_line(world->edi_buf, vect1, vect2, sfRed);
+    my_draw_line(world->edi_buf, vect2, vect4, sfRed);
+    my_draw_line(world->edi_buf, vect4, vect3, sfRed);
+    my_draw_line(world->edi_buf, vect3, vect1, sfRed);
+}
+
 void take_input_edit(world_t *world)
 {
     sfVector2i mouse = sfMouse_getPositionRenderWindow(world->edi);
     if (mouse.x < 0 || mouse.y < 0 || mouse.x > SCREEN_X || mouse.y > SCREEN_Y)
         return;
-    sfKeyboard_isKeyPressed(sfKeyZ) ? world->edi_y += 5 : 0;
-    sfKeyboard_isKeyPressed(sfKeyS) ? world->edi_y -= 5 : 0;
-    sfKeyboard_isKeyPressed(sfKeyQ) ? world->edi_x += 5 : 0;
-    sfKeyboard_isKeyPressed(sfKeyD) ? world->edi_x -= 5 : 0;
+    sfKeyboard_isKeyPressed(sfKeyZ) ? world->edi_y += 5, world->mv = 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyS) ? world->edi_y -= 5, world->mv = 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyQ) ? world->edi_x += 5, world->mv = 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyD) ? world->edi_x -= 5, world->mv = 1 : 0;
     int cs = SCREEN_X/(world->x)*1.5;
     if (sfMouse_isButtonPressed(sfMouseLeft)){
-        int xy[] = {
-            world->x - (mouse.x - world->edi_x)/cs,
-            (mouse.y - world->edi_y)/cs
-         };
-        printf("%i %i\n", xy[0], xy[1]);
+        int xy[] = {world->x - (mouse.x - world->edi_x)/cs,
+        (mouse.y - world->edi_y)/cs};
         for (int x = -world->brush; x < world->brush; x++)
         for (int y = -world->brush; y < world->brush; y++)
         for (int i = 0; i < 100; i++)
@@ -511,12 +531,21 @@ void take_input_edit(world_t *world)
     }
 }
 
+typedef struct button
+{
+    int pos_x;
+    int pos_y;
+    int size_x;
+    int size_y;
+    sfColor color;
+} button_t;
 
 int main_edit(world_t *world)
 {
     take_input_edit(world);
     draw_map(world);
     draw_player(world);
+    draw_brush(world);
     draw_window(world->edi, world->edi_buf);
     my_clear_buffer(world->edi_buf);
     world->brush = 2;
