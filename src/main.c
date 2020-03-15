@@ -354,9 +354,7 @@ int take_movement_input(float *mat_start, world_t *world)
     if (sfMouse_isButtonPressed(sfMouseLeft)){
         float vx = mouse.x - mouse_o.x;
         float vy = mouse.y - mouse_o.y;
-        mat3_rx(mat_start, vy/180);
-        mat3_ry(mat_start, -vx/180);
-        mv = 1;
+        mat3_rx(mat_start, vy/180), mat3_ry(mat_start, -vx/180), mv = 1;
     }
     mouse_o = mouse;
     return (mv);
@@ -373,6 +371,7 @@ void init_map(world_t *world)
     }
     world->mesh = mesh;
     world->sun = 0;
+    world->cs = SCREEN_X/(world->x)*1.5;
 }
 
 void init_cam(world_t *world)
@@ -442,20 +441,16 @@ int main(int ac, char **av)
 {
     srand(time(0));
     world_t *world = create_world(128, 128);
+    sfEvent event;
     for (int frame_nb = 0; frame_nb < 200000000; frame_nb++){
         main_cam(world);
         main_edit(world);
-        /*while (sfRenderWindow_pollEvent(window_g, &event))
+        while (sfRenderWindow_pollEvent(world->edi, &event))
             if (event.type == sfEvtClosed)
-                return (0);*/
+                return (0);
+        while (sfRenderWindow_pollEvent(world->cam, &event))
+            if (event.type == sfEvtClosed)
+                return (0);
     }
-
-    for (int frame_nb = 0; frame_nb < 50000000; frame_nb++){
-        //float *mat_inv = mat3_inv(mat_start);
-        //float *mat_pos = mat3_multiply(mat_inv, mat_start);
-        //free(mat_inv);
-    }
-    //free_mesh(mesh, size_x, size_y);
-    //free(mat_start);
     return (0);
 }

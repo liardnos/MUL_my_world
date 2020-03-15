@@ -39,6 +39,7 @@ typedef struct world
     sfFont *font;
     int buton_nb;
     float sun;
+    int cs;
 } world_t;
 
 sfColor calc_color(float **mesh, int i, int x, char **sun_grid);

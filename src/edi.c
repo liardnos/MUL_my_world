@@ -147,6 +147,32 @@ void button7(world_t *world, int nb)
     buts[nb].on = 0;
 }
 
+void button8(world_t *world, int nb)
+{
+    button_t *buts = world->edi_buttons;
+    buts[nb].pos_x = SCREEN_X - 150, buts[nb].pos_y = 100 + nb*60;
+    buts[nb].size_x = 150, buts[nb].size_y = 50;
+    sfColor c1[] = {255, 255, 255, 50};
+    sfColor c2[] = {50, 50, 50, 0};
+    sfColor c3[] = {200, 200, 200, 255};
+    buts[nb].color1 = *c1, buts[nb].color2 = *c2, buts[nb].color3 = *c3;
+    buts[nb].txt = "Zoom +";
+    buts[nb].on = 0;
+}
+
+void button9(world_t *world, int nb)
+{
+    button_t *buts = world->edi_buttons;
+    buts[nb].pos_x = SCREEN_X - 150, buts[nb].pos_y = 100 + nb*60;
+    buts[nb].size_x = 150, buts[nb].size_y = 50;
+    sfColor c1[] = {255, 255, 255, 50};
+    sfColor c2[] = {50, 50, 50, 0};
+    sfColor c3[] = {200, 200, 200, 255};
+    buts[nb].color1 = *c1, buts[nb].color2 = *c2, buts[nb].color3 = *c3;
+    buts[nb].txt = "Zoom -";
+    buts[nb].on = 0;
+}
+
 
 void init_buttons(world_t *world)
 {
@@ -158,12 +184,14 @@ void init_buttons(world_t *world)
     button5(world, 5);
     button6(world, 6);
     button7(world, 7);
+    button8(world, 8);
+    button9(world, 9);
 }
 
 void init_edit(world_t *world)
 {
     sfVideoMode mode = {SCREEN_X, SCREEN_Y, 32};
-    world->buton_nb = 8;
+    world->buton_nb = 10;
     world->edi = sfRenderWindow_create(mode, "editor", sfClose, 0);
     world->edi_buf = framebuffer_create(SCREEN_X, SCREEN_Y);
     world->edi_x = 0;
@@ -181,7 +209,7 @@ void draw_player(world_t *world)
     float *mat_inv = mat3_inv(world->mat_start);
     float *mat_pos = mat3_multiply(mat_inv, world->mat_start);
     free(mat_inv);
-    int cs = SCREEN_X/(world->x)*1.5;
+    int cs = world->cs;
     sfVector2u vect[] = {
         (world->x-mat_pos[3]) * cs + world->edi_x,
         mat_pos[7] * cs + world->edi_y
@@ -195,7 +223,7 @@ void draw_map(world_t *world)
     sfVector2u vect;
     sfVector2f vect1;
     sfVector2f vect2;
-    int cs = SCREEN_X/(world->x)*1.5;
+    int cs = world->cs;
     for (int y = 1; y < world->y; y++){
         for (int x = 1; x < world->x; x++){
             sfColor color = calc_color(world->mesh, x+y*world->x, world->x, world->sun_grid);
@@ -219,7 +247,7 @@ void draw_brush(world_t *world)
     sfVector2i mouse = sfMouse_getPositionRenderWindow(world->edi);
     if (mouse.x < 0 || mouse.y < 0 || mouse.x > SCREEN_X || mouse.y > SCREEN_Y)
         return;
-    int cs = SCREEN_X/(world->x)*1.5;
+    int cs = world->cs;
     int x = (mouse.x)/cs;
     int y = (mouse.y)/cs;
     int brush = world->brush;
@@ -261,11 +289,7 @@ void take_input_edit(world_t *world)
     sfVector2i mouse = sfMouse_getPositionRenderWindow(world->edi);
     if (mouse.x < 0 || mouse.y < 0 || mouse.x > SCREEN_X || mouse.y > SCREEN_Y)
         return;
-    sfKeyboard_isKeyPressed(sfKeyZ) ? world->edi_y += 10, world->mv |= 1 : 0;
-    sfKeyboard_isKeyPressed(sfKeyS) ? world->edi_y -= 10, world->mv |= 1 : 0;
-    sfKeyboard_isKeyPressed(sfKeyQ) ? world->edi_x += 10, world->mv |= 1 : 0;
-    sfKeyboard_isKeyPressed(sfKeyD) ? world->edi_x -= 10, world->mv |= 1 : 0;
-    int cs = SCREEN_X/(world->x)*1.5;
+    int cs = world->cs;
     if (sfMouse_isButtonPressed(sfMouseLeft)){
         int xy[] = {world->x - (mouse.x - world->edi_x)/cs,
         (mouse.y - world->edi_y)/cs};
@@ -281,6 +305,10 @@ void take_input_edit(world_t *world)
 int interact_butons(world_t *world)
 {
     int tot = 0;
+    sfKeyboard_isKeyPressed(sfKeyZ) ? world->edi_y += 10, world->mv |= 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyS) ? world->edi_y -= 10, world->mv |= 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyQ) ? world->edi_x += 10, world->mv |= 1 : 0;
+    sfKeyboard_isKeyPressed(sfKeyD) ? world->edi_x -= 10, world->mv |= 1 : 0;
     button(world, 0) == 0x3 ? world->brush += 1 : 0;
     button(world, 1) == 0x3 ? world->brush > 0 ? world->brush -= 1 : 0 : 0;
     button(world, 2) == 0x3 ? world->brush_type = 1 : 0;
@@ -289,6 +317,8 @@ int interact_butons(world_t *world)
     button(world, 5) == 0x3 ? world->mv ^= 2 : 0;
     button(world, 6) == 0x3 ? world->sun += PI/12 : 0;
     button(world, 7) == 0x3 ? world->sun -= PI/12 : 0;
+    button(world, 8) == 0x3 ? world->cs *= 1.5 : 0;
+    button(world, 9) == 0x3 ? world->cs /= 1.5 : 0;
     for (int i = 0; i < world->buton_nb; i++)
         tot += button(world, i);
     return (tot);
@@ -299,9 +329,10 @@ int main_edit(world_t *world)
     draw_map(world);
     draw_player(world);
     draw_brush(world);
-    if (!interact_butons(world)){
-        take_input_edit(world);
-    }
+    sfVector2i m = sfMouse_getPositionRenderWindow(world->edi);
+    if (!(m.x < 0 || m.y < 0 || m.x > SCREEN_X || m.y > SCREEN_Y))
+        if (!interact_butons(world))
+            take_input_edit(world);
     draw_window(world->edi, world->edi_buf);
     my_clear_buffer(world->edi_buf);
     return (0);
