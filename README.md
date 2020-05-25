@@ -1,5 +1,4 @@
 # MUL_my_world
-my_world
 
 3D world editor
 
