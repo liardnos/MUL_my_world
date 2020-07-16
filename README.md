@@ -3,4 +3,4 @@
 3D world editor
 
 demo at :
-https://youtu.be/sLJc5L5eQ1Y
+https://www.youtube.com/watch?v=sLJc5L5eQ1Y
